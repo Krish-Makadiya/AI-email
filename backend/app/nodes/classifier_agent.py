@@ -30,19 +30,19 @@ Output JSON Format {{"category": "...", "urgency_score": ..., "short_summary": "
     
     try:
         if api_key == "your_api_key_here":
-            raise ValueError("Mock fallback due to unset API Key")
+            raise ValueError("GEMINI_API_KEY is not configured.")
+        
         chain = prompt | llm
         response = chain.invoke({"subject": subject, "body": body})
         text = response.content.strip()
     except Exception as e:
-        print(f"Skipping LLM call: {e}")
-        text = '{"category": "Urgent_Fire", "urgency_score": 10, "short_summary": "[MOCKED] Server failure."}'
-    # Strip markdown if LLM outputs markdown block
-    if text.startswith("```json"):
-        text = text[7:-3]
-    elif text.startswith("```"):
-        text = text[3:-3]
-    text = text.strip()
+        print(f"LLM Error: {e}")
+        # Return a conservative fallback that isn't hardcoded "Mocked" text
+        return {
+            "category": "FYI_Read",
+            "urgency_score": 3,
+            "short_summary": f"Automated processing note: {str(e)[:50]}..."
+        }
     
     try:
         result = json.loads(text)
