@@ -1,25 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, Send, Sparkles } from 'lucide-react';
+import { Bot, X, Send, Sparkles, MessageSquare } from 'lucide-react';
+import axios from 'axios';
 
-const CHIPS = ['Summarize urgent', 'Tasks for today', 'Cold outreach count'];
+const CHIPS = ['Draft a professional reply', 'Identify urgent tasks', 'Analyze Vision Archive'];
 
-const INIT = [{ role:'bot', text:'How can I help you with your inbox today?' }];
+const SPRING_CONFIG = { type: 'spring', stiffness: 300, damping: 30 };
 
-export default function AssistantWidget() {
-  const [open, setOpen]       = useState(false);
-  const [msgs, setMsgs]       = useState(INIT);
-  const [input, setInput]     = useState('');
+const API = 'http://127.0.0.1:8000/chat-assistant';
 
-  const send = (text) => {
-    const t = text?.trim() || input.trim();
-    if (!t) return;
-    setMsgs(m => [
-      ...m,
-      { role:'user', text: t },
-      { role:'bot',  text: `Analyzing: "${t}" against your 50-email dataset and LangGraph state...` },
-    ]);
+export default function AssistantWidget({ pageContext = 'Home' }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'bot', text: 'Hello! I am your SoMailer Assistant. How can I help you manage your networking intelligence today?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const onSend = async (text) => {
+    const val = text || input;
+    if (!val || loading) return;
+
+    const userMsg = { role: 'user', text: val };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setLoading(true);
+
+    try {
+      // Token Management: Truncate history to last 10 turns
+      const history = messages.slice(-10);
+
+      const response = await axios.post(API, {
+        message: val,
+        page_context: pageContext,
+        history: history
+      });
+
+      setMessages(prev => [...prev, { role: 'bot', text: response.data.text }]);
+    } catch (err) {
+      console.error("Assistant Error:", err);
+      setMessages(prev => [...prev, { role: 'bot', text: "I'm having trouble connecting to the brain right now. Please try again shortly." }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -28,38 +59,47 @@ export default function AssistantWidget() {
         {open && (
           <motion.div
             className="assistant-panel"
-            initial={{ opacity:0, y:10, scale:.95 }}
-            animate={{ opacity:1, y:0,  scale:1   }}
-            exit={{    opacity:0, y:10, scale:.95 }}
-            transition={{ duration:.17, ease:'easeOut' }}
+            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 20, scale: 0.95 }}
+            transition={SPRING_CONFIG}
           >
             {/* Header */}
             <div className="assistant-header">
-              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                <Sparkles size={13} color="var(--primary)" />
-                <span>AI Assistant</span>
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-[var(--primary)]" />
+                <span className="tracking-tight">SoMailer Intelligence</span>
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', display:'flex' }}
-              >
-                <X size={14} />
+              <button onClick={() => setOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors">
+                <X size={16} />
               </button>
             </div>
 
+            {/* Context Breadcrumb */}
+            <div className="px-4 py-2 bg-[var(--surface2)] border-bottom border-[var(--border)] text-[10px] uppercase font-bold tracking-widest text-[var(--text-3)] flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--green)]" />
+              Focus: {pageContext.replace(/([A-Z])/g, ' $1').trim()}
+            </div>
+
             {/* Messages */}
-            <div className="assistant-messages">
-              {msgs.map((m, i) => (
+            <div className="assistant-messages" ref={scrollRef}>
+              {messages.map((m, i) => (
                 <div key={i} className={`msg ${m.role === 'user' ? 'msg-user' : 'msg-bot'}`}>
                   {m.text}
                 </div>
               ))}
+              {loading && (
+                <div className="msg msg-bot flex items-center gap-3">
+                  <div className="thinking-glow" />
+                  <span className="text-[11px] font-medium italic opacity-70">Analyzing logs...</span>
+                </div>
+              )}
             </div>
 
-            {/* Quick chips */}
+            {/* Chips */}
             <div className="assistant-chips">
               {CHIPS.map(c => (
-                <button key={c} className="chip" onClick={() => send(c)}>{c}</button>
+                <button key={c} className="chip" onClick={() => onSend(c)}>{c}</button>
               ))}
             </div>
 
@@ -67,13 +107,14 @@ export default function AssistantWidget() {
             <div className="assistant-input-row">
               <input
                 className="assistant-input"
-                placeholder="Ask something..."
+                placeholder="Ask your brain..."
                 value={input}
+                disabled={loading}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && send()}
+                onKeyDown={e => e.key === 'Enter' && onSend()}
               />
-              <button className="send-btn" onClick={() => send()}>
-                <Send size={14} />
+              <button className="send-btn" onClick={() => onSend()} disabled={loading || !input.trim()}>
+                <Send size={15} />
               </button>
             </div>
           </motion.div>
@@ -81,12 +122,13 @@ export default function AssistantWidget() {
       </AnimatePresence>
 
       <motion.button
-        className="assistant-fab"
-        onClick={() => setOpen(o => !o)}
-        whileTap={{ scale:.92 }}
-        title="AI Assistant"
+        className="assistant-fab ring-4 ring-offset-2 ring-transparent active:ring-[var(--primary-bg)]"
+        onClick={() => setOpen(!open)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
       >
-        {open ? <X size={19} /> : <Bot size={19} />}
+        {open ? <MessageSquare size={22} /> : <Bot size={22} />}
       </motion.button>
     </div>
   );

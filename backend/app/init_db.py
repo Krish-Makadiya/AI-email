@@ -36,6 +36,26 @@ def create_tables(db_url):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
+
+        # User Profile table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) DEFAULT 'User',
+            tone_preference VARCHAR(100) DEFAULT 'Professional',
+            signature TEXT DEFAULT 'Best regards,',
+            daily_goal TEXT DEFAULT 'Process and prioritize all urgent signals.',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # Seed initial profile if none exists
+        cursor.execute("SELECT count(*) FROM user_profiles")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+            INSERT INTO user_profiles (name, tone_preference, signature, daily_goal)
+            VALUES (%s, %s, %s, %s)
+            """, ('Tanishq', 'Professional', 'Best regards,\nTanishq J\nSoMailer User', 'Triage all incoming intelligence and focus on Project Phoenix.'))
         
         print(f"Successfully created tables in {db_url}")
         cursor.close()

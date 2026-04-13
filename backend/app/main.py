@@ -50,9 +50,21 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         "attachment_analysis": email_dict.get("attachment_analysis", "")
     }
 
+    # 0. Fetch user profile for graph context
+    user_info = {}
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT name, tone_preference, signature, daily_goal FROM user_profiles LIMIT 1")
+        user_info = cursor.fetchone() or {}
+    except Exception as e:
+        print(f"Profile fetch error in gateway: {e}")
+    finally:
+        if 'conn' in locals(): conn.close()
+
     initial_state = GraphState(
         email_data=email_payload,
-        user_info={},
+        user_info=user_info,
         classification=None,
         category=None,
         urgency_score=None,
@@ -124,3 +136,117 @@ def get_processed_emails():
         return {"emails": []}
     finally:
         if 'conn' in locals(): conn.close()
+
+# ── AI ASSISTANT CONFIG ───────────────────────────────────
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.schema import HumanMessage, SystemMessage, AIMessage
+
+class UserProfile(BaseModel):
+    name: str
+    tone_preference: str
+    signature: str
+    daily_goal: str
+
+@app.get("/user-profile")
+async def get_user_profile():
+    """Fetches the persistent user profile from the database."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT name, tone_preference, signature, daily_goal FROM user_profiles LIMIT 1")
+        row = cursor.fetchone()
+        return row if row else {"name": "User", "tone_preference": "Professional", "signature": "", "daily_goal": ""}
+    except Exception as e:
+        print(f"Profile fetch error: {e}")
+        return {"name": "User", "tone_preference": "Professional", "signature": "", "daily_goal": ""}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.post("/user-profile")
+async def update_user_profile(profile: UserProfile):
+    """Updates the persistent user profile in the database."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE user_profiles 
+            SET name = %s, tone_preference = %s, signature = %s, daily_goal = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = (SELECT id FROM user_profiles LIMIT 1)
+        """, (profile.name, profile.tone_preference, profile.signature, profile.daily_goal))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Profile update error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+class ChatRequest(BaseModel):
+    message: str
+    page_context: str
+    history: List[Dict[str, str]]
+
+@app.post("/chat-assistant")
+async def chat_assistant(req: ChatRequest):
+    """
+    AI Assistant Endpoint: Processes user queries using Gemini 2.0 Flash
+    with knowledge of the LIVE user profile and recent email history.
+    """
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.7)
+    
+    # 1. Fetch live user profile
+    profile = await get_user_profile()
+    
+    # 2. Fetch some email context
+    email_context = ""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT payload FROM email_actions ORDER BY created_at DESC LIMIT 10")
+        rows = cursor.fetchall()
+        emails = [r['payload'] for r in rows]
+        email_context = json.dumps(emails, indent=2)
+    except Exception as e:
+        print(f"Chat context fetch error: {e}")
+    finally:
+        if 'conn' in locals(): conn.close()
+
+    # 2. Build Prompt (Chain-of-Thought + Agentic Logic)
+    system_prompt = f"""You are the SoMailer AI Assistant. You follow a strict 'Logic First' reasoning pattern.
+User Profile: {json.dumps(profile)}
+Current Page: {req.page_context}
+
+Available Context (Last 10 processed emails):
+{email_context}
+
+Reasoning Framework (Always follow this before responding):
+1. **Analyze Intent**: Determine exactly what the user is asking.
+2. **Context Retrieval**: Look at the current page and provided email history to find relevant facts.
+3. **Drafting Strategy**: 
+   - If the request is about **Scheduling**: 
+     - Check preferred tone ({profile.get('tone_preference')}).
+     - Identify time-slots in the relevant email.
+     - Propose a draft that asks for confirmation or suggests a clear window.
+   - If the request is a **Summary**: Identify actionable intelligence (dates, figures).
+4. **Injection**: Ensure the response ends with the user's signature if it's a draft.
+
+Guidelines:
+- Maintain the '{profile.get('tone_preference')}' voice of {profile.get('name')}.
+- Use the signature: \"{profile.get('signature')}\" for all drafted replies.
+- Be proactive. If an email is urgent, suggest the next concrete step."""
+
+    # 3. Convert history to LangChain format (with truncation check handled in frontend, but safe to verify roles)
+    messages = [SystemMessage(content=system_prompt)]
+    for h in req.history:
+        if h['role'] == 'user':
+            messages.append(HumanMessage(content=h['text']))
+        else:
+            messages.append(AIMessage(content=h['text']))
+    
+    messages.append(HumanMessage(content=req.message))
+
+    try:
+        response = llm.invoke(messages)
+        return {"text": response.content}
+    except Exception as e:
+        return {"text": f"I'm sorry, I encountered an error: {str(e)}"}

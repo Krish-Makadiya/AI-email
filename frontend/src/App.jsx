@@ -8,6 +8,9 @@ import Sidebar       from './components/Sidebar';
 import CommandCenter from './components/CommandCenter';
 import IntelligenceFeed from './components/IntelligenceFeed';
 import AssistantWidget  from './components/AssistantWidget';
+import VisionArchive    from './components/VisionArchive';
+import Analytics        from './components/Analytics';
+import PersonalSpace    from './components/PersonalSpace';
 
 /* ── Live status badge ─────────────────────────────────── */
 function SystemStatus() {
@@ -100,15 +103,15 @@ function Shell() {
                 </>
               )}
               {tab === 'inbox'     && <IntelligenceFeed />}
-              {tab === 'analytics' && <Placeholder title="Analytics" />}
-              {tab === 'archive'   && <Placeholder title="Vision Archive" />}
-              {tab === 'settings'  && <Placeholder title="Settings" />}
+              {tab === 'analytics' && <Analytics />}
+              {tab === 'archive'   && <VisionArchive />}
+              {tab === 'settings'  && <PersonalSpace />}
             </div>
           </AnimatePresence>
         </div>
       </div>
 
-      <AssistantWidget />
+      <AssistantWidget pageContext={tab} />
     </div>
   );
 }
