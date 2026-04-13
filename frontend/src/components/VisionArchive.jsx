@@ -28,7 +28,10 @@ function getIcon(content = '') {
 export default function VisionArchive() {
   const { emails, loading } = useEmails();
 
-  const visionEmails = emails.filter(e => e.attachment_analysis && e.attachment_analysis.trim() !== '');
+  const visionEmails = emails.filter(e => {
+    const text = (e.attachment_analysis || '').trim().toLowerCase();
+    return text !== '' && text !== 'no attachment' && text !== 'none';
+  });
 
   if (loading && visionEmails.length === 0) {
     return (
