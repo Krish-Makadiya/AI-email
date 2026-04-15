@@ -22,7 +22,12 @@ def dispatch_command(command_package: dict):
     print(f"Target URL: {target_url}")
     
     try:
-        response = requests.post(target_url, json=command_package, timeout=3)
+        # Unpack the specific payload mappings into the root dictionary
+        # because n8n workflows explicitly expect $json.body.mail instead of $json.body.payload.mail
+        payload_data = command_package.get("payload", {})
+        outgoing_data = {**command_package, **payload_data}
+        
+        response = requests.post(target_url, json=outgoing_data, timeout=3)
         print(f"n8n responded with status code: {response.status_code}")
         return response.status_code
     except requests.exceptions.RequestException as e:

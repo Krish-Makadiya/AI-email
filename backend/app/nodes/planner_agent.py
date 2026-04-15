@@ -33,6 +33,7 @@ Structure:
   "status": "escalated | resolved | false_positive | confirm | pending",
   "payload": {{
     "summary": "High-density actionable summary",
+    "card_id": "uuid-placeholder-or-db-id",
     "analysis": {{
       "entities": {{
         "issue_type": "Server Down",
@@ -43,13 +44,21 @@ Structure:
       "urgency_score": 9
     }},
     "mail": {{
-      "sender_name": "{email_data.get("sender", "unknown")}",
-      "sender_mail": "{email_data.get("sender", "unknown")}",
-      "subject": "{email_data.get("subject", "")}"
+      "id": "mock_mail_id_123",
+      "body": "{email_data.get('body', '')}",
+      "sender_name": "{email_data.get('sender', 'unknown')}",
+      "sender_mail": "{email_data.get('sender', 'unknown')}",
+      "subject": "{email_data.get('subject', '')}"
     }},
     "alert": {{
       "alert_message": "Short alert text",
-      "recipient_name": "{user_info.get("name", "User")}"
+      "recipient_name": "{user_info.get('name', 'User')}"
+    }},
+    "draft_message": {{
+      "id": "mock_draft_123"
+    }},
+    "event": {{
+      "id": "mock_event_123"
     }},
     "jira": {{
       "id": "AUTO-GEN",
@@ -109,5 +118,21 @@ Structure:
             command_package["action"] = "spam_filter"
             command_package["payload"] = {"summary": "Spam filtered."}
 
+    # Force injection of strictly required n8n fields
+    payload = command_package.get("payload", {})
+    if "card_id" not in payload: payload["card_id"] = "mock_db_card_123"
+    
+    if "mail" not in payload: payload["mail"] = {}
+    payload["mail"]["id"] = "mock_mail_id_123"
+    if "body" not in payload["mail"]: payload["mail"]["body"] = email_data.get("body", "No body")
+    
+    if "draft_message" not in payload: payload["draft_message"] = {"id": "mock_draft_123"}
+    if "event" not in payload: payload["event"] = {"id": "mock_event_123"}
+    if "jira" not in payload: payload["jira"] = {"id": "AUTO-GEN", "ticket_link": "https://jira.corporate.com/browse/AUTO"}
+    
+    if "alert" not in payload:
+        payload["alert"] = {"alert_message": short_summary, "recipient_name": user_info.get("name", "User")}
+        
+    command_package["payload"] = payload
     command_package["classification"] = category
     return {"command_package": command_package}
