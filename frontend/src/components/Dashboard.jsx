@@ -12,6 +12,7 @@ const Dashboard = () => {
       try {
         // Points to our FastAPI Gateway
         const response = await axios.get('http://127.0.0.1:8000/process-email');
+        console.log("✅ Fetched emails from backend:", response.data.emails?.length);
         setEmails(response.data.emails || []);
       } catch (error) {
         console.error("Migration data fetch failed, using fallback mock:", error);
@@ -29,6 +30,10 @@ const Dashboard = () => {
     };
 
     fetchEmails();
+    
+    // Auto-refresh every 3 seconds to pick up new emails from n8n
+    const interval = setInterval(fetchEmails, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const getClassificationStyles = (type) => {

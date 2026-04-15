@@ -33,8 +33,15 @@ def create_tables(db_url):
         CREATE TABLE IF NOT EXISTS email_actions (
             id SERIAL PRIMARY KEY, 
             payload JSONB, 
+            email_received_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        """)
+
+        # Add email_received_at column if it doesn't exist
+        cursor.execute("""
+        ALTER TABLE email_actions
+        ADD COLUMN IF NOT EXISTS email_received_at TIMESTAMP NULL;
         """)
 
         # User Profile table

@@ -65,8 +65,8 @@ def seed():
             }
             
             cursor.execute(
-                "INSERT INTO email_actions (payload, created_at) VALUES (%s, %s)",
-                (json.dumps(payload), created_at)
+                "INSERT INTO email_actions (payload, email_received_at, created_at) VALUES (%s, %s, %s)",
+                (json.dumps(payload), created_at, created_at)
             )
             
         conn.commit()

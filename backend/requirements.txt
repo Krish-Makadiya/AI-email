@@ -2,9 +2,10 @@ fastapi
 uvicorn
 langchain
 langgraph
-langchain-google-genai
+langchain-groq
 psycopg2-binary
 sqlalchemy
 pandas
 python-dotenv
 redis
+requests

@@ -8,7 +8,7 @@ import Sidebar       from './components/Sidebar';
 import CommandCenter from './components/CommandCenter';
 import IntelligenceFeed from './components/IntelligenceFeed';
 import AssistantWidget  from './components/AssistantWidget';
-import VisionArchive    from './components/VisionArchive';
+import VisionArchive    from './components/VisionArchive_Enhanced';
 import Analytics        from './components/Analytics';
 import PersonalSpace    from './components/PersonalSpace';
 

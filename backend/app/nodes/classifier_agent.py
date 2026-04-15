@@ -1,20 +1,20 @@
 from typing import Dict, Any
 import json
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from app.agent_state import GraphState
 
 def process_classification(state: GraphState) -> Dict[str, Any]:
-    """Classifier Node: Categorizes email using Gemini API."""
+    """Classifier Node: Categorizes email using Llama 3.3 70B via Groq API."""
     email_data = state.get("email_data", {})
     subject = email_data.get("subject", "")
     body = email_data.get("body", "")
     
-    api_key = os.environ.get("GEMINI_API_KEY", "your_api_key_here")
+    groq_api_key = os.environ.get("GROQ_API_KEY", "your_api_key_here")
     
-    # Use the latest supported model (gemini-flash-latest) for optimal stability
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0, google_api_key=api_key)
+    # Use Llama 3.3 70B for optimal performance
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, groq_api_key=groq_api_key)
     
     user_info = state.get("user_info", {})
     
@@ -40,8 +40,8 @@ Allowed Categories: [Urgent_Fire, Scheduling, Action_Required, FYI_Read, Cold_Ou
     )
     
     try:
-        if api_key == "your_api_key_here":
-            raise ValueError("GEMINI_API_KEY is not configured.")
+        if groq_api_key == "your_api_key_here":
+            raise ValueError("GROQ_API_KEY is not configured.")
         
         print(f"[Classifier] Invoking LLM for subject: {subject}...")
         chain = prompt | llm

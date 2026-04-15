@@ -23,7 +23,7 @@ Located in `/backend/app/`, this is the agentic heart of the system.
     *   `researcher_node` -> `planner_node` -> **END**.
 *   **Nodes**:
     *   `identity_agent.py`: Matches senders against `user_registry.csv` (Columns: `full_name`, `corporate_email`, `department`, `manager_email`, `priority_projects`, `working_hours`, `no_interrupt_list`).
-    *   `classifier_agent.py`: Uses `gemini-2.0-flash` with a strict JSON system prompt.
+    *   `classifier_agent.py`: Uses `llama-3.3-70b-versatile` with a strict JSON system prompt.
     *   `researcher_agent.py`: Currently mocks project constraints; ready for `pgvector` integration.
     *   `planner_agent.py`: Maps 5 distinct categories to 5 specific n8n actions (`trigger_incident`, `propose_times`, `draft_task`, `archive_or_notify`, `spam_filter`).
     *   `dispatcher.py`: POSTs to `N8N_WEBHOOK_URL` (configurable in `.env`).
@@ -50,14 +50,14 @@ Used for "rehydrating" the system with historical data.
 
 ### Vision Main Automation
 The live trigger for new incoming mail.
-*   **Attachment Handling**: If an image or PDF is detected, it is sent to **Gemini Vision**. The resulting text analysis is appended to the payload passed to the Backend.
+*   **Attachment Handling**: If an image or PDF is detected, it is sent to **Groq/Llama Vision** capability. The resulting text analysis is appended to the payload passed to the Backend.
 
 ---
 
 ## ✅ Milestones Reached (This Session)
 1.  **High-Fidelity Migration**: Fixed the B64 decoding and header parsing logic in n8n.
 2.  **Brain Un-Mocking**: Removed all hardcoded fallback responses. 
-3.  **Model Upgrade**: Transitioned from legacy Gemini 1.5 to **Gemini 2.0 Flash**, resolving 404 connection errors.
+3.  **Model Upgrade**: Transitioned from Gemini API to **Groq's Llama 3.3 70B** model for better performance and cost efficiency.
 4.  **Backend Robustness**: Fixed a critical crash where the system couldn't handle "list" typed responses from the LLM.
 5.  **Persistence Layer**: Implemented a `TRUNCATE` procedure to clear prototype data and verify new high-fidelity records.
 6.  **Premium UI Fixes**: Restructured `index.css` to solve PostCSS import order warnings and improved the Intelligence Panel visibility.
@@ -78,7 +78,7 @@ The live trigger for new incoming mail.
 ### Backend (Python 3.10+)
 *   `fastapi`, `uvicorn`: API Gateway & Web Server.
 *   `langchain`, `langgraph`: Multi-agent orchestration framework.
-*   `langchain-google-genai`: Brain engine (Pinned to `gemini-2.0-flash`).
+*   `langchain-groq`: Brain engine (Using `Llama 3.3 70B` model).
 *   `psycopg2-binary`: PostgreSQL adapter for persistence.
 *   `pandas`: Registry handling for corporate identity.
 *   `python-dotenv`: Environment variable management.

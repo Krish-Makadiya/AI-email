@@ -162,15 +162,13 @@
     },
     {
       "parameters": {
-        "authentication": "serviceAccount",
-        "operation": "upsert",
-        "projectId": "somail-ffbf4",
-        "collection": "user/krishmakadiya2005/scheduling",
-        "updateKey": "updateKey",
-        "columns": "status"
+        "operation": "insert",
+        "schema": "public",
+        "table": "email_actions",
+        "columns": "payload"
       },
-      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
       "position": [
         1120,
         -96
@@ -178,23 +176,21 @@
       "id": "926810a3-7d36-4870-a905-7aa7b17ecc30",
       "name": "Create or update a document",
       "credentials": {
-        "googleApi": {
-          "id": "zyEyO1oS8YWyDEA9",
-          "name": "SoMail"
+        "postgres": {
+          "id": "1",
+          "name": "Shared Postgres"
         }
       }
     },
     {
       "parameters": {
-        "authentication": "serviceAccount",
-        "operation": "upsert",
-        "projectId": "somail-ffbf4",
-        "collection": "user/krishmakadiya2005/scheduling",
-        "updateKey": "=updateKey",
-        "columns": "status"
+        "operation": "insert",
+        "schema": "public",
+        "table": "email_actions",
+        "columns": "payload"
       },
-      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
       "position": [
         1120,
         96
@@ -202,9 +198,9 @@
       "id": "d8b2c37b-0994-44e5-b7b1-ebfa581c1a59",
       "name": "Create or update a document1",
       "credentials": {
-        "googleApi": {
-          "id": "zyEyO1oS8YWyDEA9",
-          "name": "SoMail"
+        "postgres": {
+          "id": "1",
+          "name": "Shared Postgres"
         }
       }
     },

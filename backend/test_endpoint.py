@@ -1,22 +1,24 @@
 import requests
-import time
+import json
 
-url = "http://127.0.0.1:8000/process-email"
-
-payload = {
-    "sender": "boss@corporatedomain.com",
-    "receiver": "exampletcj@gmail.com",
-    "subject": "Testing Email Gateway",
-    "body": "This is a dummy email hitting the process-email endpoint",
-    "is_1on1": False
-}
-
-print(f"Waiting for server to fully initialize...")
-time.sleep(2)
 try:
-    print(f"Sending POST to {url}")
-    response = requests.post(url, json=payload, timeout=10)
-    print("Status Code:", response.status_code)
-    print("Response JSON:", response.json())
+    response = requests.get('http://127.0.0.1:8000/process-email')
+    data = response.json()
+    
+    if 'emails' in data:
+        print(f"✅ Successfully fetched {len(data['emails'])} emails from backend\n")
+        
+        if data['emails']:
+            print("First 3 emails:")
+            for email in data['emails'][:3]:
+                print(f"\nID: {email['id']}")
+                print(f"From: {email['sender_email']}")
+                print(f"Subject: {email['subject'][:60]}")
+                print(f"Classification: {email['classification']}")
+        else:
+            print("⚠️ No emails in response")
+    else:
+        print(f"❌ Unexpected response format: {data.keys()}")
+        
 except Exception as e:
-    print("Failed to reach server:", e)
+    print(f"❌ Error: {e}")

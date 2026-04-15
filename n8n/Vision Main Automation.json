@@ -19,10 +19,10 @@
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
       "position": [
-        -448,
-        192
+        1216,
+        1328
       ],
-      "id": "b182c775-0f33-4ac8-8d85-9fffcc0e7625",
+      "id": "48ab8c47-ab53-4768-a810-20cc4270b62a",
       "name": "Gmail Trigger1",
       "credentials": {
         "gmailOAuth2": {
@@ -30,33 +30,6 @@
           "name": "Gmail account"
         }
       }
-    },
-    {
-      "parameters": {
-        "dataType": "string",
-        "value1": "={{$json.sender || $json.from}}",
-        "rules": {
-          "rules": [
-            {
-              "operation": "contains",
-              "value2": "priority@example.com"
-            },
-            {
-              "operation": "contains",
-              "value2": "blacklist@example.com"
-            }
-          ]
-        },
-        "fallbackOutput": 2
-      },
-      "id": "7366af70-3fcc-4d37-8121-e52df619973b",
-      "name": "Intelligent Filter1",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 2,
-      "position": [
-        -224,
-        192
-      ]
     },
     {
       "parameters": {
@@ -73,13 +46,13 @@
         },
         "options": {}
       },
-      "id": "d2a8f84f-b037-4d8a-ac55-bb4815067381",
+      "id": "d44f779b-22fe-46d8-b39c-31cb62dcb1a5",
       "name": "Trigger Urgent Fire1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        200,
-        0
+        1856,
+        1136
       ]
     },
     {
@@ -89,13 +62,13 @@
         "columns": "payload",
         "options": {}
       },
-      "id": "2ee08527-d3d0-4b8c-8418-799c86692d64",
+      "id": "7f60d050-023c-48a7-be59-d309d7d8d23a",
       "name": "Save Blacklist1",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        200,
-        200
+        1856,
+        1344
       ],
       "credentials": {
         "postgres": {
@@ -106,15 +79,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  const json = item.json;\n  const payload = json.payload || {};\n  const headers = payload.headers || [];\n  \n  // 1. Format-Agnostic Header Extraction\n  const from = json.from || headers.find(h => h.name.toLowerCase() === 'from')?.value || 'unknown@example.com';\n  const subject = json.subject || headers.find(h => h.name.toLowerCase() === 'subject')?.value || 'No Subject';\n\n  const senderEmail = from.includes('<') ? from.match(/<([^>]+)>/)[1] : from;\n  const nameMatch = from.match(/^([^<]+)/);\n  const senderName = nameMatch ? nameMatch[1].trim().replace(/\\\"/g, '') : senderEmail;\n\n  // 2. Full Content Extraction Improvement\n  let emailContent = '';\n  if (json.text) {\n    emailContent = json.text;\n  } else if (json.html) {\n    emailContent = json.html.replace(/<[^>]*>/g, ' '); \n  } else if (payload.parts) {\n    const textPart = payload.parts.find(p => p.mimeType === 'text/plain');\n    if (textPart && textPart.body.data) {\n        emailContent = Buffer.from(textPart.body.data, 'base64').toString('utf8');\n    }\n  } else if (payload.body && payload.body.data) {\n    emailContent = Buffer.from(payload.body.data, 'base64').toString('utf8');\n  }\n  \n  if (!emailContent.trim()) emailContent = json.snippet || '';\n\n  const receivedDate = new Date(json.date || json.receivedTime || Date.now());\n  const formattedDate = receivedDate.toLocaleString('en-US', {\n    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true\n  });\n\n  const rowData = {\n    mailid: json.id,\n    date: formattedDate,\n    senderName: senderName,\n    senderEmail: senderEmail,\n    subject: subject,\n    content: emailContent.trim(),\n    hasAttachments: ($binary != undefined && Object.keys($binary).length > 0)\n  };\n  \n  items.push({ json: rowData, binary: item.binary });\n}\n\nreturn items;"
+        "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  const emailData = item.json;\n  \n  let senderEmail = '';\n  let senderName = '';\n\n  if (emailData.from?.value?.[0]) {\n    senderEmail = emailData.from.value[0].address || '';\n    senderName = emailData.from.value[0].name || senderEmail;\n  } else if (emailData.from?.text) {\n    const emailMatch = emailData.from.text.match(/<([^>]+)>/) || \n                      emailData.from.text.match(/([^\\s]+@[^\\s]+)/);\n    senderEmail = emailMatch ? emailMatch[1] : emailData.from.text;\n    \n    const nameMatch = emailData.from.text.match(/^([^<]+)/);\n    senderName = nameMatch ? nameMatch[1].trim().replace(/\\\"/g, '') : senderEmail;\n  }\n\n  const receivedDate = new Date(emailData.date || emailData.receivedTime);\n  const formattedDate = receivedDate.toLocaleString('en-US', {\n    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true\n  });\n\n  let emailContent = '';\n  if (emailData.text) {\n    emailContent = emailData.text;\n  } else if (emailData.html) {\n    emailContent = emailData.html.replace(/<style[^>]*>.*?<\\/style>/gs, '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n  } else if (emailData.body) {\n    emailContent = emailData.body;\n  }\n\n  const rowData = {\n    mailid: $input.first().json.id,\n    date: formattedDate,\n    senderName: senderName,\n    senderEmail: senderEmail,\n    subject: emailData.subject || 'No Subject',\n    content: emailContent,\n    hasAttachments: ($binary != undefined && Object.keys($binary).length > 0)\n  };\n  \n  items.push({ json: rowData, binary: item.binary });\n}\n\nreturn items;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        200,
-        450
+        1856,
+        1600
       ],
-      "id": "4992a5ef-3e26-403a-b37f-67a279fd9321",
+      "id": "6713ae22-f197-4e25-831a-a603c6df4e10",
       "name": "Code in JavaScript1",
       "notesInFlow": true
     },
@@ -129,26 +102,25 @@
           ]
         }
       },
-      "id": "cb9f3dba-517b-46b7-80e2-cfd56594a894",
+      "id": "46cb509e-313d-410e-a769-581283c2a9c7",
       "name": "Has Attachments?1",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        500,
-        450
+        2160,
+        1600
       ]
     },
     {
       "parameters": {
         "resource": "document",
-        "operation": "analyze",
         "modelId": {
           "__rl": true,
           "value": "models/gemini-2.0-flash",
           "mode": "list",
           "cachedResultName": "models/gemini-2.0-flash"
         },
-        "text": "Summarize the key information and any action items found in this attachment. Provide the summary in 2-3 concise sentences for a management dashboard.",
+        "text": "Analyze this document (PDF/Image/Data) for high-depth actionable intelligence relevant to a professional executive workspace.\n\nChain-of-Thought Reasoning:\n\n1) Identify Type: Is this an Invoice, Contract, Meeting Deck, or Report?\n2) Contextual Relevance: How does this impact the recipient?\n3) Intelligence Extraction:\n      a) Dates: Identify all deadlines, meeting times, or renewal dates.\n      b) Financials: Look for figures, totals, budgets, or payment terms.\n      c) Signatures: Detect if a signature or approval is requested from the user.\n4) Actionable Summary: Generate a high-density summary focused on what needs to be done next.\nOutput Format:\n\n     Document Type: [Type]\n     Key Intelligence: [High-level actionable items]\n     Critical Dates: [List of dates]\n     Financial Figures: [List of values]\nRequested Action: [Specific next step for the user]\n",
         "inputType": "binary",
         "binaryPropertyName": "attachment_0",
         "options": {}
@@ -156,10 +128,10 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.1,
       "position": [
-        800,
-        350
+        2464,
+        1488
       ],
-      "id": "ccbba203-3a46-47c8-8ea0-d42c251daa2d",
+      "id": "831876c1-f95a-4e33-bde1-e6ece2cb5ddb",
       "name": "Analyze document1",
       "credentials": {
         "googlePalmApi": {
@@ -171,7 +143,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8000/process-email",
+        "url": "http://host.docker.internal:8000/process-email",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -189,20 +161,84 @@
             },
             {
               "name": "attachment_analysis",
-              "value": "={{ $node[\"Analyze document1\"]?.json?.output || 'No attachment' }}"
+              "value": "={{ $if($node[\"Analyze document1\"].isExecuted, $node[\"Analyze document1\"].json.output, \"No attachment\") }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "840b14be-a78d-4f0b-94bc-3557ddc1f108",
+      "id": "90f1b849-7855-4e46-b06c-fdb2c50e1bbd",
       "name": "FastAPI Gateway1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1100,
-        450
+        2768,
+        1600
       ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fb744f69-dd4f-4f73-97be-2d8048e175c1",
+                    "leftValue": "=={{$json.sender || $json.from}}",
+                    "rightValue": "=priority@example.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5a6a0b02-8750-417f-a75e-237231e2c573",
+                    "leftValue": "=={{$json.sender || $json.from}}",
+                    "rightValue": "blacklist@example.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1488,
+        1312
+      ],
+      "id": "8a01c7d4-7f9b-4198-8374-1e633e0ee384",
+      "name": "Switch",
+      "retryOnFail": true
     }
   ],
   "pinData": {},
@@ -211,32 +247,7 @@
       "main": [
         [
           {
-            "node": "Intelligent Filter1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Intelligent Filter1": {
-      "main": [
-        [
-          {
-            "node": "Trigger Urgent Fire1",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Save Blacklist1",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Code in JavaScript1",
+            "node": "Switch",
             "type": "main",
             "index": 0
           }
@@ -282,6 +293,31 @@
           }
         ]
       ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Trigger Urgent Fire1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Blacklist1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -289,7 +325,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "f0643ea1-54aa-49c0-9f2d-b18a38c29e1c",
+  "versionId": "4eb89dcd-0bc7-476f-9c2c-85d6194def53",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "8fed0a8d6c2a54f94de28c9ef58c5b89a59fc5e2c0ab498a8df1d24372114ead"

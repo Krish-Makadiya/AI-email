@@ -10,6 +10,7 @@ import json
 from app.graph import graph_app
 from app.agent_state import GraphState
 from app.dispatcher import dispatch_command
+from app.vision_parser import parse_vision_analysis, format_vision_card
 from dotenv import load_dotenv
 
 load_dotenv() # Load variables from .env
@@ -33,6 +34,7 @@ class EmailInput(BaseModel):
     content: str
     is_1on1: bool = False
     attachment_analysis: str = ""
+    received_at: str | None = None
 
 @app.post("/process-email")
 def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks):
@@ -48,7 +50,8 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         "subject": email_dict.get("subject"),
         "body": email_dict.get("content"),
         "is_1on1": email_dict.get("is_1on1", False),
-        "attachment_analysis": email_dict.get("attachment_analysis", "")
+        "attachment_analysis": email_dict.get("attachment_analysis", ""),
+        "email_received_at": email_dict.get("received_at")
     }
 
     # 0. Fetch user profile for graph context
@@ -91,10 +94,19 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         dashboard_data['short_summary'] = result.get('short_summary', '')
         
         import json
-        cursor.execute(
-            "INSERT INTO email_actions (payload) VALUES (%s)", 
-            (json.dumps(dashboard_data),)
-        )
+        # If the incoming payload included an email_received_at timestamp, store it in its own column
+        received_at_val = dashboard_data.get('email_received_at') if isinstance(dashboard_data, dict) else None
+
+        if received_at_val:
+            cursor.execute(
+                "INSERT INTO email_actions (payload, email_received_at) VALUES (%s, %s)", 
+                (json.dumps(dashboard_data), received_at_val)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO email_actions (payload) VALUES (%s)", 
+                (json.dumps(dashboard_data),)
+            )
         conn.commit()
     except Exception as e:
         print(f"DB Insert error: {e}")
@@ -114,22 +126,31 @@ def get_processed_emails():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM email_actions ORDER BY created_at DESC LIMIT 50")
+        cursor.execute("SELECT * FROM email_actions ORDER BY COALESCE(email_received_at, created_at) DESC LIMIT 50")
         rows = cursor.fetchall()
         
         # Format for dashboard
         formatted_emails = []
         for row in rows:
             p = row['payload']
+            attachment_analysis = p.get('attachment_analysis', '')
+            
+            # Parse vision data if attachment analysis exists
+            vision_data = None
+            if attachment_analysis and attachment_analysis.lower() not in ['no attachment', 'none', '']:
+                parsed = parse_vision_analysis(attachment_analysis)
+                vision_data = format_vision_card(parsed)
+            
             formatted_emails.append({
                 "id": row['id'],
                 "sender_email": p.get('sender_email', 'unknown@corp.com'),
                 "subject": p.get('subject', 'No Subject'),
                 "content": p.get('content', ''),
                 "classification": p.get('classification', 'FYI_Read'),
-                "attachment_analysis": p.get('attachment_analysis', ''),
+                "attachment_analysis": attachment_analysis,
+                "vision_data": vision_data,
                 "urgency_score": p.get('urgency_score', 0),
-                "timestamp": row['created_at'].isoformat() if row['created_at'] else None
+                "timestamp": (row['email_received_at'].isoformat() if row.get('email_received_at') else (row['created_at'].isoformat() if row['created_at'] else None))
             })
             
         return {"emails": formatted_emails}
@@ -140,7 +161,7 @@ def get_processed_emails():
         if 'conn' in locals(): conn.close()
 
 # ── AI ASSISTANT CONFIG ───────────────────────────────────
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 class UserProfile(BaseModel):
@@ -191,23 +212,43 @@ class ChatRequest(BaseModel):
 @app.post("/chat-assistant")
 async def chat_assistant(req: ChatRequest):
     """
-    AI Assistant Endpoint: Processes user queries using Gemini 2.0 Flash
+    AI Assistant Endpoint: Processes user queries using Llama 3.3 70B
     with knowledge of the LIVE user profile and recent email history.
     """
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.7)
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.7, groq_api_key=groq_api_key)
     
     # 1. Fetch live user profile
     profile = await get_user_profile()
     
-    # 2. Fetch some email context
+    # 2. Fetch some email context (explicitly include effective timestamps so the model can determine newest-first)
     email_context = ""
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT payload FROM email_actions ORDER BY created_at DESC LIMIT 10")
+        cursor.execute("SELECT id, payload, created_at, email_received_at FROM email_actions ORDER BY COALESCE(email_received_at, created_at) DESC LIMIT 10")
         rows = cursor.fetchall()
-        emails = [r['payload'] for r in rows]
-        email_context = json.dumps(emails, indent=2)
+
+        enriched = []
+        for r in rows:
+            payload = r['payload']
+            # payload may be stored as JSONB (dict) or text
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except Exception:
+                    pass
+
+            effective_ts = r['email_received_at'] if r.get('email_received_at') else r.get('created_at')
+            enriched.append({
+                "id": r['id'],
+                "effective_received_at": (effective_ts.isoformat() if effective_ts else None),
+                "created_at": (r['created_at'].isoformat() if r.get('created_at') else None),
+                "payload": payload
+            })
+
+        # Make it explicit to the LLM that the list is ordered newest-first
+        email_context = "NOTE: The following list is ordered newest-first (index 0 is the most recent).\n" + json.dumps(enriched, indent=2)
     except Exception as e:
         print(f"Chat context fetch error: {e}")
     finally:

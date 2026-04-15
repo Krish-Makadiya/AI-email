@@ -12,13 +12,13 @@ def process_research(state: GraphState) -> Dict[str, Any]:
     
     # RAG Logic - pgvector implementation placeholder
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/email_intelligence")
-    api_key = os.environ.get("GEMINI_API_KEY", "your_api_key_here")
+    groq_api_key = os.environ.get("GROQ_API_KEY", "your_api_key_here")
     
     context_results = []
     
     try:
-        if api_key == "your_api_key_here":
-            raise ValueError("No valid API Key for embeddings")
+        if groq_api_key == "your_api_key_here":
+            raise ValueError("No valid API Key for Groq")
             
         # Due to Docker offline, pgvector connection will naturally fail today.
         # When online, utilize langchain_postgres PGVector here.

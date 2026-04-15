@@ -1,26 +1,40 @@
 import os
-import google.generativeai as genai
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def list_and_test():
     print("--- INITIATING DISCOVERY PROBE ---")
-    api_key = os.getenv("GEMINI_API_KEY")
-    genai.configure(api_key=api_key)
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    
+    if not groq_api_key:
+        print("RESULT: FAILED")
+        print("ERROR: GROQ_API_KEY not set")
+        return
     
     try:
-        print("Listing Available Models for this Key...")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(f"AVAILABLE: {m.name}")
-        
-        # Select gemini-flash-latest
-        model_to_test = 'models/gemini-flash-latest'
+        print("Testing Groq connection with Llama 3.3 70B...")
+        model_to_test = 'llama-3.3-70b-versatile'
         print(f"\nTesting with {model_to_test}...")
-        model = genai.GenerativeModel(model_to_test)
-        response = model.generate_content("Ping")
-        print(f"RESPONSE RECEIVED: {response.text}")
+        
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model_to_test,
+                "messages": [{"role": "user", "content": "Ping"}],
+                "temperature": 0
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        result = response.json()
+        message = result['choices'][0]['message']['content']
+        print(f"RESPONSE RECEIVED: {message}")
         print("RESULT: SUCCESS")
     except Exception as e:
         print(f"RESULT: FAILED")
