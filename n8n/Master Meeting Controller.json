@@ -8,10 +8,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        4768,
-        2240
+        4176,
+        2688
       ],
-      "id": "371ab75b-02bf-4303-8e45-b62149c2f97c",
+      "id": "7ba08f0c-6796-4419-9377-68802ea62842",
       "name": "Respond to Webhook"
     },
     {
@@ -48,6 +48,10 @@
             {
               "name": "tags",
               "value": "={{ $json.draft.tags }}"
+            },
+            {
+              "name": "suggested_slots",
+              "value": "={{ $json.draft.suggested_slots }}"
             }
           ]
         },
@@ -56,10 +60,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        4560,
-        2240
+        3968,
+        2688
       ],
-      "id": "8294910c-4f4e-4b29-9ffd-34fc33ce8cdc",
+      "id": "e4dd80a1-f5a6-4b4e-897c-766329fefc89",
       "name": "Save Draft"
     },
     {
@@ -69,10 +73,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4112,
-        2688
+        3520,
+        3136
       ],
-      "id": "fd1e255c-0a76-41e0-9caa-867e58799b67",
+      "id": "ae0f41ca-a78d-48f6-94e4-8d8f4ab9bb25",
       "name": "Gen Cancel Draft"
     },
     {
@@ -94,10 +98,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        3920,
-        2688
+        3328,
+        3136
       ],
-      "id": "fd45966a-2f5f-4239-b31b-02c4290b1773",
+      "id": "a1e1d541-1cef-4a5a-b4e5-a63cd05565ab",
       "name": "Mark Cancelled",
       "credentials": {
         "postgres": {
@@ -112,30 +116,46 @@
           "values": [
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "reschedule",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "2cd77667-09d5-4d28-8032-6ab5d0d633c6"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             },
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "cancel",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "5a8a4fbd-b2c1-435e-8524-db7feafa4c02"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             }
           ]
@@ -145,10 +165,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.1,
       "position": [
-        3664,
-        2544
+        3072,
+        2992
       ],
-      "id": "e6bd3b3d-69fe-4d4e-9330-f6f7089d00ff",
+      "id": "26c88661-a35c-4d8c-8e80-e464f4878420",
       "name": "Resch/Canc Switch"
     },
     {
@@ -165,10 +185,10 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [
-        3472,
-        2544
+        2880,
+        2992
       ],
-      "id": "b4b1c8b8-7821-4fce-a519-37327756040e",
+      "id": "7257e7bb-e40a-41ff-b7be-66957982e79e",
       "name": "Delete Calendar Event",
       "credentials": {
         "googleCalendarOAuth2Api": {
@@ -196,10 +216,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        3264,
-        2544
+        2672,
+        2992
       ],
-      "id": "09978dda-338a-4940-a398-74be44ff474f",
+      "id": "dbc7fd01-bc26-4a91-8eb7-f93fb1376c12",
       "name": "Fetch Google Event ID",
       "credentials": {
         "postgres": {
@@ -215,22 +235,26 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4320,
-        2240
+        3728,
+        2688
       ],
-      "id": "222c71bc-6e7d-4a01-894b-e92ff3240727",
+      "id": "d7643fae-fc15-4212-b0eb-f3b2debe10b6",
       "name": "Gen Confirm Draft"
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=http://host.docker.internal:8000/email-actions/{{ $node[\"Webhook\"].json.body.email_action_id }}/confirm",
+        "url": "=http://host.docker.internal:8000/email-actions/{{ $json.body.email_action_id }}/confirm",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "google_event_id",
               "value": "={{ $json.id }}"
+            },
+            {
+              "name": "scheduled_time",
+              "value": "={{ $node[\"Webhook\"].json.body.start_time }}"
             }
           ]
         },
@@ -239,10 +263,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        4112,
-        2240
+        3520,
+        2688
       ],
-      "id": "baf76212-4066-4011-b176-cdc2800e18fa",
+      "id": "e082e176-7514-4e53-a865-188759cebb36",
       "name": "Confirm Backend"
     },
     {
@@ -252,22 +276,22 @@
           "value": "primary",
           "mode": "list"
         },
-        "start": "=={{ $node[\"Prep Google Data\"].json.start }}",
-        "end": "=={{ $node[\"Prep Google Data\"].json.end }}",
+        "start": "={{ $node[\"Prep Google Data\"].json.start }}",
+        "end": "={{ $node[\"Prep Google Data\"].json.end }}",
         "additionalFields": {
           "attendees": [
-            "=={{ $node[\"Prep Google Data\"].json.attendee }}"
+            "={{ $node[\"Prep Google Data\"].json.attendee }}"
           ],
-          "summary": "=={{ $node[\"Prep Google Data\"].json.summary }}"
+          "summary": "={{ $node[\"Prep Google Data\"].json.summary }}"
         }
       },
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [
-        3920,
-        2240
+        3328,
+        2688
       ],
-      "id": "8fe536bc-0444-4842-8c50-6a919aaeb6b1",
+      "id": "8d3d5330-c697-4207-bff8-3c4a0135af31",
       "name": "Create Google Event",
       "credentials": {
         "googleCalendarOAuth2Api": {
@@ -278,15 +302,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// This version handles the \"Always Output Data\" empty case correctly\nconst rawInput = $input.all();\nconst events = rawInput.filter(e => e.json.start);\nconst body = $('Webhook').item.json.body || {};\nconst profile = $('Get User Profile').item.json || { signature: \"\" };\nconst senderName = body.mail?.sender_name || 'there';\n\n// Professional Slot Hunting Logic\nconst START_HOUR = 9; const END_HOUR = 18; const istOffset = 5.5;\n\nfunction isBusy(start, end) {\n  return events.some(e => {\n    const eStart = new Date(e.json.start.dateTime || e.json.start.date);\n    const eEnd = new Date(e.json.end.dateTime || e.json.end.date);\n    return (start < eEnd && end > eStart);\n  });\n}\n\nconst availableSlots = []; const now = new Date();\nfor (let d = 0; d < 3; d++) {\n  const day = new Date(now); day.setDate(now.getDate() + d);\n  day.setUTCHours(Math.floor(START_HOUR - istOffset), 30, 0, 0);\n  for (let h = 0; h < (END_HOUR - START_HOUR) * 2; h++) {\n    const slotStart = new Date(day); slotStart.setMinutes(day.getMinutes() + (h * 30));\n    const slotEnd = new Date(slotStart); slotEnd.setMinutes(slotStart.getMinutes() + 30);\n    if (slotStart > now && !isBusy(slotStart, slotEnd)) {\n      availableSlots.push(slotStart); if (availableSlots.length >= 5) break;\n    }\n  }\n  if (availableSlots.length >= 5) break;\n}\n\nconst slotStrings = availableSlots.map(s => s.toLocaleString('en-IN', { \n  weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' \n}));\n\nconst suggestedDraft = `Hi ${senderName},\\n\\nI've reviewed my calendar and I have the following availability (IST):\\n\\n${slotStrings.map(s => `- ${s}`).join('\\n')}\\n\\nDo any of these times work for a call?\\n\\n${profile.signature}`;\n\nreturn {\n  draft: {\n    email_action_id: body.email_action_id,\n    content: suggestedDraft,\n    recipient: body.mail?.sender_mail,\n    subject: `Re: ${body.mail?.subject || 'Meeting Request'}`,\n    type: \"Scheduling Proposal\",\n    reasoning: \"Autonomous slot hunting completed.\",\n    tags: [\"Scheduling\", \"Auto-Probe\"]\n  }\n};\n"
+        "jsCode": "// This version handles the \"Always Output Data\" empty case correctly\nconst rawInput = $input.all();\nconst events = rawInput.filter(e => e.json.start);\nconst body = $('Webhook').item.json.body || {};\nconst profile = $('Get User Profile').item.json || { signature: \"\" };\nconst senderName = body.mail?.sender_name || 'there';\n\n// Professional Slot Hunting Logic\nconst START_HOUR = 9; const END_HOUR = 18; const istOffset = 5.5;\n\nfunction isBusy(start, end) {\n  return events.some(e => {\n    const eStart = new Date(e.json.start.dateTime || e.json.start.date);\n    const eEnd = new Date(e.json.end.dateTime || e.json.end.date);\n    return (start < eEnd && end > eStart);\n  });\n}\n\nconst availableSlots = []; const now = new Date();\nfor (let d = 0; d < 3; d++) {\n  const day = new Date(now); day.setDate(now.getDate() + d);\n  day.setUTCHours(Math.floor(START_HOUR - istOffset), 30, 0, 0);\n  for (let h = 0; h < (END_HOUR - START_HOUR) * 2; h++) {\n    const slotStart = new Date(day); slotStart.setMinutes(day.getMinutes() + (h * 30));\n    const slotEnd = new Date(slotStart); slotEnd.setMinutes(slotStart.getMinutes() + 30);\n    if (slotStart > now && !isBusy(slotStart, slotEnd)) {\n      availableSlots.push(slotStart); if (availableSlots.length >= 5) break;\n    }\n  }\n  if (availableSlots.length >= 5) break;\n}\n\nconst slotStrings = availableSlots.map(s => s.toLocaleString('en-IN', { \n  weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' \n}));\n\n// RALPH LOOP: Export raw ISOs for frontend buttons\nconst slots_raw = availableSlots.map(s => s.toISOString());\n\nconst suggestedDraft = `Hi ${senderName},\\n\\nI've reviewed my calendar and I have the following availability (IST):\\n\\n[DYNAMIC_SLOTS_HERE]\\n\\nDo any of these times work for a call?\\n\\n${profile.signature}`;\n\nreturn {\n  draft: {\n    email_action_id: body.email_action_id,\n    content: suggestedDraft,\n    recipient: body.mail?.sender_mail,\n    subject: `Re: ${body.mail?.subject || 'Meeting Request'}`,\n    type: \"Scheduling Proposal\",\n    reasoning: \"Autonomous slot hunting completed.\",\n    tags: [\"Scheduling\", \"Auto-Probe\"],\n    suggested_slots: slots_raw\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3712,
-        1984
+        3120,
+        2432
       ],
-      "id": "a5f71ed7-dc1c-4783-9a61-774ef08b2f2b",
+      "id": "c6fdb50e-ee66-492f-915a-2e9193cdc8cb",
       "name": "3-Day Probe"
     },
     {
@@ -296,10 +320,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3712,
-        2240
+        3120,
+        2688
       ],
-      "id": "215865cd-0fad-41fa-a246-ffa9716fe7f9",
+      "id": "ade1c95f-bdf1-4dad-845f-62c88207e8fb",
       "name": "Final Conflict Check"
     },
     {
@@ -315,10 +339,10 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [
-        3360,
-        1984
+        2768,
+        2432
       ],
-      "id": "eba589c2-ba36-409d-b90d-e2a2f98524e5",
+      "id": "169967ae-b56a-48b3-8389-2f2f09a51f37",
       "name": "Check Availability",
       "alwaysOutputData": true,
       "credentials": {
@@ -334,58 +358,90 @@
           "values": [
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "propose_times",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "d47d1a61-1030-454e-843e-bfeb020cc57a"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             },
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "confirm",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "23ae5fda-0d38-44c2-a325-a43532370d63"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             },
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "reschedule",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "f64dea8f-f502-4dc2-af7a-641518f5ed40"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             },
             {
               "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').first().json.current_action }}",
                     "rightValue": "cancel",
                     "operator": {
                       "type": "string",
-                      "operation": "equals"
-                    }
+                      "operation": "contains"
+                    },
+                    "id": "7341ab80-2adf-4ebc-a8ef-774121aa0fa3"
                   }
-                ]
+                ],
+                "combinator": "and"
               }
             }
           ]
@@ -395,11 +451,34 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.1,
       "position": [
-        3072,
-        2288
+        2480,
+        2736
       ],
-      "id": "0683464f-2d99-4c4b-a284-3e5c367fccbf",
+      "id": "e2b4b177-648e-4c38-94f3-27f6be5506b2",
       "name": "Action Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "93693e50-8b38-4e8b-8e8e-8e8e8e8e8e8e",
+              "name": "current_action",
+              "value": "={{ $node[\"Webhook\"].json.body.action }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2336,
+        2736
+      ],
+      "id": "ada70fa1-57d0-49c0-abd1-c29960b81fd7",
+      "name": "Edit Fields"
     },
     {
       "parameters": {
@@ -412,10 +491,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2816,
-        2288
+        2160,
+        2736
       ],
-      "id": "374e83ff-3291-4cd0-b1c8-30da227e895a",
+      "id": "e01a64b4-4097-4b4f-9ab6-9c8c542ee682",
       "name": "Get User Profile",
       "credentials": {
         "postgres": {
@@ -434,10 +513,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        2464,
-        2288
+        1872,
+        2736
       ],
-      "id": "56f29525-b3e9-4273-b66f-2dd635951d5b",
+      "id": "94b7821d-e805-4112-9b12-f5d429a9870e",
       "name": "Webhook",
       "webhookId": "756f7317-2851-4455-bcaa-a1d5cfbfe5a3"
     },
@@ -455,7 +534,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "=={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').item.json.current_action }}",
                     "rightValue": "confirm",
                     "operator": {
                       "type": "string",
@@ -477,7 +556,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "=={{ $node[\"Webhook\"].json.body.action }}",
+                    "leftValue": "={{ $('Edit Fields').item.json.current_action }}",
                     "rightValue": "confirm",
                     "operator": {
                       "type": "string",
@@ -496,10 +575,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.1,
       "position": [
-        3392,
-        2224
+        2800,
+        2672
       ],
-      "id": "c29e7f2e-ede8-4b64-a85d-3e8bbbd4fc7a",
+      "id": "eb2c77be-a011-482d-89cc-0a2b508c280c",
       "name": "Is Confirming?"
     },
     {
@@ -509,10 +588,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3536,
-        2368
+        2944,
+        2816
       ],
-      "id": "a1e08719-a21c-4d29-bc89-bd9c7901e8f1",
+      "id": "0aa05850-9e32-47aa-81dc-70eb5f03c0dc",
       "name": "Prep Google Data"
     }
   ],
@@ -689,11 +768,22 @@
         ]
       ]
     },
-    "Get User Profile": {
+    "Edit Fields": {
       "main": [
         [
           {
             "node": "Action Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
             "type": "main",
             "index": 0
           }
@@ -746,7 +836,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "34702043-d995-48fd-b76d-34c450fe4935",
+  "versionId": "5fef3ce3-9288-4550-976e-1ed06b673746",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "8fed0a8d6c2a54f94de28c9ef58c5b89a59fc5e2c0ab498a8df1d24372114ead"

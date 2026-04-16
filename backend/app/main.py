@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +6,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import json
+import time
 
 from app.graph import graph_app
 from app.agent_state import GraphState
@@ -16,6 +17,19 @@ from dotenv import load_dotenv
 load_dotenv() # Load variables from .env
 
 app = FastAPI(title="Smart Email Assistant Gateway", version="1.0.0")
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    log_file = "requests.log"
+    msg = f"{time.ctime()} | {request.method} {request.url}\n"
+    print(f"[REQLOG] {msg.strip()}")
+    try:
+        with open(log_file, "a") as f:
+            f.write(msg)
+    except:
+        pass
+    return await call_next(request)
 
 # Explicitly allow Vite development port
 app.add_middleware(
@@ -34,6 +48,7 @@ except Exception as e:
     print(f"Redis connection error: {e}")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/email_intelligence")
+print(f"DATABASE_ID: {DATABASE_URL}")
 
 class EmailInput(BaseModel):
     sender_email: str
@@ -141,33 +156,50 @@ def get_processed_emails():
         # Format for dashboard
         formatted_emails = []
         for row in rows:
-            p = row['payload']
-            attachment_analysis = p.get('attachment_analysis', '')
-            
-            # Parse vision data if attachment analysis exists
-            vision_data = None
-            if attachment_analysis and attachment_analysis.lower() not in ['no attachment', 'none', '']:
-                parsed = parse_vision_analysis(attachment_analysis)
-                vision_data = format_vision_card(parsed)
-            
-            formatted_emails.append({
-                "id": row['id'],
-                "sender_email": p.get('sender_email', 'unknown@corp.com'),
-                "subject": p.get('subject', 'No Subject'),
-                "content": p.get('content', ''),
-                "classification": p.get('classification', 'FYI_Read'),
-                "attachment_analysis": attachment_analysis,
-                "vision_data": vision_data,
-                "urgency_score": p.get('urgency_score', 0),
-                "suggested_draft": p.get('suggested_draft', ''),
-                "intelligence_reasoning": p.get('intelligence_reasoning', ''),
-                "timestamp": (row['email_received_at'].isoformat() if row.get('email_received_at') else (row['created_at'].isoformat() if row['created_at'] else None))
-            })
-            
+            try:
+                p = row['payload']
+                if not p or not isinstance(p, dict):
+                    continue
+                attachment_analysis = p.get('attachment_analysis', '')
+                
+                vision_data = None
+                if attachment_analysis and attachment_analysis.lower() not in ['no attachment', 'none', '']:
+                    parsed = parse_vision_analysis(attachment_analysis)
+                    vision_data = format_vision_card(parsed)
+                
+                # Safe timestamp logic
+                ts = None
+                try:
+                    raw_received = row.get('email_received_at')
+                    raw_created = row.get('created_at')
+                    if raw_received and hasattr(raw_received, 'isoformat'):
+                        ts = raw_received.isoformat()
+                    elif raw_created and hasattr(raw_created, 'isoformat'):
+                        ts = raw_created.isoformat()
+                except:
+                    pass
+
+                formatted_emails.append({
+                    "id": row['id'],
+                    "sender_email": p.get('sender_email', 'unknown@corp.com'),
+                    "subject": p.get('subject', 'No Subject'),
+                    "content": p.get('content', ''),
+                    "classification": p.get('classification', 'FYI_Read'),
+                    "attachment_analysis": attachment_analysis,
+                    "vision_data": vision_data,
+                    "urgency_score": p.get('urgency_score', 0),
+                    "suggested_draft": p.get('suggested_draft', ''),
+                    "intelligence_reasoning": p.get('intelligence_reasoning', ''),
+                    "timestamp": ts
+                })
+            except Exception as row_err:
+                print(f"Error processing row {row.get('id')}: {row_err}")
+                continue
+                
         return {"emails": formatted_emails}
     except Exception as e:
         print(f"DB Fetch Error: {e}")
-        return {"emails": []}
+        return {"emails": [], "debug_error": str(e)}
     finally:
         if 'conn' in locals(): conn.close()
 # ── DRAFTS & SCHEDULING ──────────────────────────────────────
@@ -179,6 +211,7 @@ class DraftCreate(BaseModel):
     type: str
     tags: List[str] = []
     reasoning: str | None = None
+    suggested_slots: List[str] = []
 
 class DraftUpdate(BaseModel):
     content: str
@@ -206,9 +239,9 @@ def create_draft(draft: DraftCreate):
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO draft_replies (email_action_id, content, recipient, subject, type, tags, reasoning)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (draft.email_action_id, draft.content, draft.recipient, draft.subject, draft.type, draft.tags, draft.reasoning))
+            INSERT INTO draft_replies (email_action_id, content, recipient, subject, type, tags, reasoning, suggested_slots)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (draft.email_action_id, draft.content, draft.recipient, draft.subject, draft.type, draft.tags, draft.reasoning, json.dumps(draft.suggested_slots)))
         new_id = cursor.fetchone()[0]
         conn.commit()
         return {"status": "success", "id": new_id}
@@ -260,7 +293,7 @@ def execute_draft_v2(draft_id: int):
             return {"status": "error", "message": "Draft not found"}
 
         # Logic to trigger n8n
-        n8n_url = os.getenv("N8N_DRAFT_EXECUTION_URL", "http://host.docker.internal:5678/webhook/execute-draft")
+        n8n_url = os.getenv("N8N_DRAFT_EXECUTION_URL", "http://localhost:5678/webhook/execute-draft")
         import requests
         try:
             resp = requests.post(n8n_url, json=draft, timeout=5)
@@ -286,12 +319,16 @@ def get_scheduled_emails():
             SELECT id, payload->>'sender_email' as sender, payload->>'subject' as subject, 
             scheduling_status, scheduled_time, google_event_id 
             FROM email_actions 
-            WHERE scheduling_status != 'New' AND scheduled_time IS NOT NULL 
-            ORDER BY scheduled_time ASC
+            WHERE scheduling_status != 'New'
+            ORDER BY COALESCE(scheduled_time, '2099-01-01'::timestamp) ASC
         """)
-        return {"scheduled": cursor.fetchall()}
+        results = cursor.fetchall()
+        print(f"DEBUG FETCHALL: {results}")
+        return {"scheduled": results}
     except Exception as e:
-        print(f"Scheduled fetch error: {e}")
+        print(f"Scheduled fetch error details: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {"scheduled": []}
     finally:
         if 'conn' in locals(): conn.close()
@@ -323,6 +360,7 @@ def update_email_scheduling(id: int, update: SchedulingUpdate):
 
 class ConfirmUpdate(BaseModel):
     google_event_id: str
+    scheduled_time: str | None = None
 
 @app.patch("/email-actions/{id}/confirm")
 def confirm_email_meeting(id: int, update: ConfirmUpdate):
@@ -331,9 +369,11 @@ def confirm_email_meeting(id: int, update: ConfirmUpdate):
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE email_actions 
-            SET scheduling_status = 'Confirmed', google_event_id = %s 
+            SET scheduling_status = 'Confirmed', 
+                google_event_id = %s,
+                scheduled_time = %s
             WHERE id = %s
-        """, (update.google_event_id, id))
+        """, (update.google_event_id, update.scheduled_time, id))
         conn.commit()
         return {"status": "success"}
     except Exception as e:

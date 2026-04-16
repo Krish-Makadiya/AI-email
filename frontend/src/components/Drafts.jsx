@@ -7,7 +7,7 @@ import {
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
 export default function Drafts() {
   const [drafts, setDrafts] = useState([]);
@@ -15,6 +15,7 @@ export default function Drafts() {
   const [loading, setLoading] = useState(true);
   const [isExecuting, setIsExecuting] = useState({});
   const [editingDraft, setEditingDraft] = useState(null);
+  const [selectedTime, setSelectedTime] = useState({});
 
   const fetchContent = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -39,18 +40,67 @@ export default function Drafts() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleExecute = async (id) => {
+  const handleExecute = async (draft) => {
+    const id = draft.id;
     setIsExecuting(prev => ({ ...prev, [id]: true }));
-    const t = toast.loading("Executing draft via n8n...");
+    const t = toast.loading(selectedTime[id] ? "Confirming appointment..." : "Executing draft via n8n...");
+    
     try {
-      await axios.post(`${API_BASE}/execute-draft/${id}`);
-      toast.success("Draft dispatched successfully!", { id: t });
+      if (selectedTime[id] && draft.type === 'Scheduling Proposal') {
+        const n8nWebhook = "http://localhost:5678/webhook/meeting-logic";
+        
+        // 1. Trigger the n8n logic
+        await axios.post(n8nWebhook, {
+          email_action_id: draft.email_action_id,
+          action: "confirm",
+          start_time: selectedTime[id],
+          recipient: draft.recipient
+        });
+
+        // 2. BACKUP: Direct confirmation to ensure card visibility
+        // We use a dummy Event ID if the real one hasn't arrived via n8n's callback yet
+        await axios.patch(`${API_BASE}/email-actions/${draft.email_action_id}/confirm`, {
+          google_event_id: `PENDING_SYNC_${draft.email_action_id}`,
+          scheduled_time: selectedTime[id]
+        });
+
+        // 3. Mark the draft as executed in the database so it disappears
+        await axios.post(`${API_BASE}/execute-draft/${id}`);
+        
+        toast.success("Meeting confirmed! Syncing with calendar...", { id: t });
+      } else {
+        await axios.post(`${API_BASE}/execute-draft/${id}`);
+        toast.success("Draft dispatched successfully!", { id: t });
+      }
       fetchContent();
     } catch (err) {
+      console.error("Execution error:", err);
       toast.error("Execution pipeline error.", { id: t });
     } finally {
       setIsExecuting(prev => ({ ...prev, [id]: false }));
     }
+  };
+
+  const handleSelectSlot = (draft, isoString) => {
+    const humanTime = new Date(isoString).toLocaleString('en-IN', { 
+      weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' 
+    });
+
+    const newContent = draft.content.replace(
+      /\[DYNAMIC_SLOTS_HERE\]|I've confirmed our meeting for .* \(IST\)\./g, 
+      `I've confirmed our meeting for ${humanTime} (IST).`
+    ).replace(
+      /I have the following availability \(IST\):\n\n(.*\n)*\nDo any of these times work/g,
+      `I have confirmed our meeting for ${humanTime} (IST).\n\nDoes this time still work`
+    );
+
+    // Fallback: If the draft is a proposal, simplify the text to a confirmation format
+    const finalizedContent = draft.type === 'Scheduling Proposal' ? 
+      `Hi,\n\nI've confirmed our meeting for ${humanTime} (IST). I've added it to our calendars.\n\nLooking forward to speaking!` 
+      : newContent;
+
+    setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, content: finalizedContent } : d));
+    setSelectedTime(prev => ({ ...prev, [draft.id]: isoString }));
   };
 
   const handleDelete = async (id) => {
@@ -170,18 +220,40 @@ export default function Drafts() {
                     </button>
                   </div>
 
-                  <div className="bg-black/10 backdrop-blur-md p-6 rounded-3xl text-sm text-text-2 mb-8 border border-white/5 leading-relaxed font-sans shadow-inner">
+                  <div className="bg-black/10 backdrop-blur-md p-6 rounded-3xl text-sm text-text-2 mb-6 border border-white/5 leading-relaxed font-sans shadow-inner whitespace-pre-wrap">
                     {draft.content}
                   </div>
 
+                  {/* RALPH LOOP: Interactive Slot Selection Buttons */}
+                  {draft.type === 'Scheduling Proposal' && draft.suggested_slots && draft.suggested_slots.length > 0 && (
+                    <div className="mb-8">
+                      <p className="text-[10px] font-bold text-text-3 uppercase tracking-widest mb-3 ml-1">Select a time to confirm:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {draft.suggested_slots.map((slot, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleSelectSlot(draft, slot)}
+                            className={`px-4 py-2.5 rounded-2xl text-[11px] font-bold border transition-all ${
+                              selectedTime[draft.id] === slot 
+                                ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
+                                : 'bg-surface2 border-border text-text-2 hover:border-primary/40'
+                            }`}
+                          >
+                            {new Date(slot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(slot).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-4">
                     <button 
-                      onClick={() => handleExecute(draft.id)}
-                      disabled={isExecuting[draft.id]}
-                      className="flex-1 btn btn-primary justify-center py-4 text-sm font-bold shadow-xl shadow-primary/25 disabled:opacity-50 disabled:scale-100 group-hover:scale-[1.01] transition-transform"
+                      onClick={() => handleExecute(draft)}
+                      disabled={isExecuting[draft.id] || (draft.type === 'Scheduling Proposal' && !selectedTime[draft.id])}
+                      className="flex-1 btn btn-primary justify-center py-4 text-sm font-bold shadow-xl shadow-primary/25 disabled:opacity-40 disabled:scale-100 group-hover:scale-[1.01] transition-transform"
                     >
                       <Send size={16} className={isExecuting[draft.id] ? 'animate-pulse' : ''} /> 
-                      {isExecuting[draft.id] ? 'Processing...' : 'Execute Command'}
+                      {isExecuting[draft.id] ? 'Processing...' : (selectedTime[draft.id] ? 'Confirm & Dispatch' : (draft.type === 'Scheduling Proposal' ? 'Select Slot to Confirm' : 'Execute Command'))}
                     </button>
                     <button 
                       onClick={() => handleIgnore(draft.email_action_id)}
@@ -233,7 +305,10 @@ export default function Drafts() {
                   
                   <div className="flex items-center gap-3 text-[11px] font-bold text-primary bg-primary/5 px-4 py-3 rounded-2xl mb-6 border border-primary/10">
                     <Clock size={14} />
-                    {new Date(item.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(item.scheduled_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    {item.scheduled_time 
+                      ? `${new Date(item.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${new Date(item.scheduled_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                      : 'Time Pending Sync...'
+                    }
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
