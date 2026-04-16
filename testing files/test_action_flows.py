@@ -1,7 +1,7 @@
 import requests
 import json
 
-URL = "http://localhost:8000/process-email"
+URL = "http://127.0.0.1:8000/process-email"
 
 def test_scheduling():
     payload = {
@@ -28,5 +28,19 @@ def test_urgent():
     print(json.dumps(res.json(), indent=2))
 
 if __name__ == "__main__":
-    test_scheduling()
-    test_urgent()
+    print("--- SoMailer Workflow Tester ---")
+    print("1. Test Post Scheduling Workflow")
+    print("2. Test Post Urgent Fire Workflow")
+    print("3. Run All Tests")
+    
+    choice = input("\nEnter your choice (1/2/3): ").strip()
+    
+    if choice == "1":
+        test_scheduling()
+    elif choice == "2":
+        test_urgent()
+    elif choice == "3":
+        test_scheduling()
+        test_urgent()
+    else:
+        print("Invalid choice. Exiting.")

@@ -31,6 +31,8 @@ Structure:
 {{
   "action": "trigger_incident | propose_times | draft_task | archive_or_notify | spam_filter",
   "status": "escalated | resolved | false_positive | confirm | pending",
+  "suggested_draft": "Drafted reply text based on {user_info.get('tone_preference')} tone. End with {user_info.get('signature')}.",
+  "intelligence_reasoning": "Brief explanation of why this draft/action was chosen based on email context.",
   "payload": {{
     "summary": "High-density actionable summary",
     "card_id": "uuid-placeholder-or-db-id",
@@ -135,4 +137,6 @@ Structure:
         
     command_package["payload"] = payload
     command_package["classification"] = category
+    command_package["suggested_draft"] = command_package.get("suggested_draft", "")
+    command_package["intelligence_reasoning"] = command_package.get("intelligence_reasoning", "Processed by Gemini 2.0 Flash.")
     return {"command_package": command_package}

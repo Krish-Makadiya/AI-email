@@ -1,0 +1,330 @@
+{
+  "name": "Master Meeting Controller",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-logic",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -400,
+        200
+      ],
+      "id": "trigger",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "user_profiles",
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -200,
+        200
+      ],
+      "id": "fetch-profile",
+      "name": "Get User Profile",
+      "credentials": { "postgres": { "id": "57onlUbW4pSOWEVy", "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "propose_times" },
+            { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "confirm" },
+            { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "reschedule" },
+            { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "cancel" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.1,
+      "position": [
+        50,
+        200
+      ],
+      "id": "mode-switch",
+      "name": "Action Switch"
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "calendar": { "__rl": true, "value": "primary", "mode": "list" },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $node[\"Webhook\"].json.body.action === 'confirm' ? $node[\"Webhook\"].json.body.start_time : $now.toISOString() }}",
+          "timeMax": "={{ $node[\"Webhook\"].json.body.action === 'confirm' ? $now.plus({days: 1}).toISOString() : $now.plus({days: 3}).toISOString() }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        350,
+        -100
+      ],
+      "id": "list-events",
+      "name": "Check Availability"
+    },
+    {
+        "parameters": {
+          "rules": {
+            "values": [
+              { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "confirm" },
+              { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "notEqual", "to": "confirm" }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.1,
+        "position": [
+          500,
+          80
+        ],
+        "id": "confirm-check-switch",
+        "name": "Is Confirming?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all();\nconst body = $('Webhook').item.json.body || {};\nconst targetStart = new Date(body.start_time);\nconst targetEnd = new Date(targetStart.getTime() + 30 * 60000);\n\nconst isBusy = events.some(e => {\n  const eStart = new Date(e.json.start.dateTime || e.json.start.date);\n  const eEnd = new Date(e.json.end.dateTime || e.json.end.date);\n  return (targetStart < eEnd && targetEnd > eStart);\n});\n\nif (isBusy) {\n  throw new Error(\"CONFLICT: The requested slot is no longer available. Manual rescheduling required.\");\n}\nreturn { status: \"Clear\" };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        150
+      ],
+      "id": "conflict-logic",
+      "name": "Final Conflict Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all();\nconst body = $('Webhook').item.json.body || {};\nconst profile = $('Get User Profile').item.json;\nconst senderName = body.mail?.sender_name || 'there';\nconst START_HOUR = 9; const END_HOUR = 18; const istOffset = 5.5;\n\nfunction isBusy(start, end) {\n  return events.some(e => {\n    const eStart = new Date(e.json.start.dateTime || e.json.start.date);\n    const eEnd = new Date(e.json.end.dateTime || e.json.end.date);\n    return (start < eEnd && end > eStart);\n  });\n}\n\nconst availableSlots = []; const now = new Date();\nfor (let d = 0; d < 3; d++) {\n  const day = new Date(now); day.setDate(now.getDate() + d);\n  day.setUTCHours(Math.floor(START_HOUR - istOffset), 30, 0, 0);\n  for (let h = 0; h < (END_HOUR - START_HOUR) * 2; h++) {\n    const slotStart = new Date(day); slotStart.setMinutes(day.getMinutes() + (h * 30));\n    const slotEnd = new Date(slotStart); slotEnd.setMinutes(slotStart.getMinutes() + 30);\n    if (slotStart > now && !isBusy(slotStart, slotEnd)) {\n      availableSlots.push(slotStart); if (availableSlots.length >= 5) break;\n    }\n  }\n  if (availableSlots.length >= 5) break;\n}\n\nconst slotStrings = availableSlots.map(s => s.toLocaleString('en-IN', { \n  weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' \n}));\n\nconst suggestedDraft = `Hi ${senderName},\\n\\nI've reviewed my calendar and I have the following availability over the next few days (IST):\\n\\n${slotStrings.map(s => `- ${s}`).join('\\n')}\\n\\nDo any of these times work for a call?\\n\\n${profile.signature}`;\n\nreturn {\n  draft: {\n    email_action_id: body.email_action_id,\n    content: suggestedDraft,\n    recipient: body.mail?.sender_mail,\n    subject: `Re: ${body.mail?.subject}`,\n    type: \"Scheduling Proposal\",\n    reasoning: \"Autonomous slot hunting triggered.\",\n    tags: [\"Scheduling\", \"Auto-Probe\"]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        -100
+      ],
+      "id": "slot-logic",
+      "name": "3-Day Probe"
+    },
+    {
+      "parameters": {
+        "calendar": { "__rl": true, "value": "primary", "mode": "list" },
+        "start": "={{ $node[\"Webhook\"].json.body.start_time }}",
+        "end": "={{ $now.plus({minutes: 30}).toISOString() }}",
+        "additionalFields": {
+          "attendees": [ "={{ $node[\"Webhook\"].json.body.recipient }}" ],
+          "summary": "=Meeting with {{ $node[\"Webhook\"].json.body.recipient }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        900,
+        150
+      ],
+      "id": "create-event",
+      "name": "Create Google Event"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8000/email-actions/{{ $node[\"Webhook\"].json.body.email_action_id }}/confirm",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [ { "name": "google_event_id", "value": "={{ $json.id }}" } ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1100,
+        150
+      ],
+      "id": "confirm-patch",
+      "name": "Confirm Backend"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').item.json.body;\nconst profile = $('Get User Profile').item.json;\nconst startTime = new Date(body.start_time).toLocaleString('en-IN', { \n  weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' \n});\n\nreturn {\n  draft: {\n    email_action_id: body.email_action_id,\n    content: `Hi,\\n\\nI've confirmed our meeting for ${startTime} (IST). I've added it to our calendars.\\n\\nLooking forward to speaking!\\n\\n${profile.signature}`,\n    recipient: body.recipient,\n    subject: `Meeting Confirmed: ${body.recipient}`,\n    type: \"Confirmation\",\n    reasoning: \"Auto-drafted after successful calendar bridge.\",\n    tags: [\"Scheduling\", \"Confirmed\"]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        150
+      ],
+      "id": "confirm-draft-gen",
+      "name": "Gen Confirm Draft"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "email_actions",
+        "limit": 1,
+        "where": {
+          "values": [ { "column": "id", "value": "={{ $node[\"Webhook\"].json.body.email_action_id }}" } ]
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        250,
+        450
+      ],
+      "id": "fetch-id",
+      "name": "Fetch Google Event ID",
+      "credentials": { "postgres": { "id": "57onlUbW4pSOWEVy", "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": { "__rl": true, "value": "primary", "mode": "list" },
+        "eventId": "={{ $json.google_event_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        450,
+        450
+      ],
+      "id": "delete-node",
+      "name": "Delete Calendar Event"
+    },
+    {
+        "parameters": {
+          "rules": {
+            "values": [
+              { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "reschedule" },
+              { "value": "={{ $node[\"Webhook\"].json.body.action }}", "operation": "equal", "to": "cancel" }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.1,
+        "position": [
+          650,
+          450
+        ],
+        "id": "reschedule-cancel-switch",
+        "name": "Resch/Canc Switch"
+    },
+    {
+      "parameters": {
+        "schema": "public",
+        "table": "email_actions",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": { "scheduling_status": "Cancelled", "google_event_id": "" },
+          "matchingColumns": [ "id" ]
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        600
+      ],
+      "id": "cancel-update",
+      "name": "Mark Cancelled",
+      "credentials": { "postgres": { "id": "57onlUbW4pSOWEVy", "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $('Get User Profile').item.json;\nconst body = $('Webhook').item.json.body;\nreturn {\n  draft: {\n    email_action_id: body.email_action_id,\n    content: `Hi,\\n\\nI'm so sorry, but I have to cancel our scheduled meeting. I'll reach out soon to find another time that works.\\n\\nBest regards,\\n${profile.signature}`,\n    recipient: body.recipient || \"\",\n    subject: \"Meeting Cancellation notice\",\n    type: \"Cancellation\",\n    reasoning: \"Auto-drafted after calendar deletion.\",\n    tags: [\"Scheduling\", \"Cancelled\"]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        600
+      ],
+      "id": "cancel-draft-gen",
+      "name": "Gen Cancel Draft"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/drafts",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email_action_id", "value": "={{ $json.draft.email_action_id }}" },
+            { "name": "content", "value": "={{ $json.draft.content }}" },
+            { "name": "recipient", "value": "={{ $json.draft.recipient }}" },
+            { "name": "subject", "value": "={{ $json.draft.subject }}" },
+            { "name": "type", "value": "={{ $json.draft.type }}" },
+            { "name": "reasoning", "value": "={{ $json.draft.reasoning }}" },
+            { "name": "tags", "value": "={{ $json.draft.tags }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1550,
+        150
+      ],
+      "id": "push-draft",
+      "name": "Save Draft"
+    },
+    {
+      "parameters": { "options": {} },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1750,
+        150
+      ],
+      "id": "respond-all",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [ [ { "node": "Get User Profile", "type": "main", "index": 0 } ] ] },
+    "Get User Profile": { "main": [ [ { "node": "Action Switch", "type": "main", "index": 0 } ] ] },
+    "Action Switch": {
+      "main": [
+        [ { "node": "Check Availability", "type": "main", "index": 0 } ],
+        [ { "node": "Check Availability", "type": "main", "index": 0 } ],
+        [ { "node": "Fetch Google Event ID", "type": "main", "index": 0 } ],
+        [ { "node": "Fetch Google Event ID", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Check Availability": { "main": [ [ { "node": "Is Confirming?", "type": "main", "index": 0 } ] ] },
+    "Is Confirming?": {
+      "main": [
+        [ { "node": "Final Conflict Check", "type": "main", "index": 0 } ],
+        [ { "node": "3-Day Probe", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Final Conflict Check": { "main": [ [ { "node": "Create Google Event", "type": "main", "index": 0 } ] ] },
+    "3-Day Probe": { "main": [ [ { "node": "Save Draft", "type": "main", "index": 0 } ] ] },
+    "Create Google Event": { "main": [ [ { "node": "Confirm Backend", "type": "main", "index": 0 } ] ] },
+    "Confirm Backend": { "main": [ [ { "node": "Gen Confirm Draft", "type": "main", "index": 0 } ] ] },
+    "Gen Confirm Draft": { "main": [ [ { "node": "Save Draft", "type": "main", "index": 0 } ] ] },
+    "Fetch Google Event ID": { "main": [ [ { "node": "Delete Calendar Event", "type": "main", "index": 0 } ] ] },
+    "Delete Calendar Event": { "main": [ [ { "node": "Resch/Canc Switch", "type": "main", "index": 0 } ] ] },
+    "Resch/Canc Switch": {
+      "main": [
+        [ { "node": "Check Availability", "type": "main", "index": 0 } ],
+        [ { "node": "Mark Cancelled", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Mark Cancelled": { "main": [ [ { "node": "Gen Cancel Draft", "type": "main", "index": 0 } ] ] },
+    "Gen Cancel Draft": { "main": [ [ { "node": "Save Draft", "type": "main", "index": 0 } ] ] },
+    "Save Draft": { "main": [ [ { "node": "Respond to Webhook", "type": "main", "index": 0 } ] ] }
+  }
+}

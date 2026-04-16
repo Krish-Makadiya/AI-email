@@ -17,14 +17,21 @@ load_dotenv() # Load variables from .env
 
 app = FastAPI(title="Smart Email Assistant Gateway", version="1.0.0")
 
-# Enable CORS for frontend dashboard
+# Explicitly allow Vite development port
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to your specific domain
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+redis_client = None
+try:
+    import redis
+    redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+except Exception as e:
+    print(f"Redis connection error: {e}")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/email_intelligence")
 
@@ -92,6 +99,8 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         dashboard_data['classification'] = result.get('category', 'FYI_Read')
         dashboard_data['urgency_score'] = result.get('urgency_score', 0)
         dashboard_data['short_summary'] = result.get('short_summary', '')
+        dashboard_data['suggested_draft'] = cmd_package.get('suggested_draft', '')
+        dashboard_data['intelligence_reasoning'] = cmd_package.get('intelligence_reasoning', '')
         
         import json
         # If the incoming payload included an email_received_at timestamp, store it in its own column
@@ -150,6 +159,8 @@ def get_processed_emails():
                 "attachment_analysis": attachment_analysis,
                 "vision_data": vision_data,
                 "urgency_score": p.get('urgency_score', 0),
+                "suggested_draft": p.get('suggested_draft', ''),
+                "intelligence_reasoning": p.get('intelligence_reasoning', ''),
                 "timestamp": (row['email_received_at'].isoformat() if row.get('email_received_at') else (row['created_at'].isoformat() if row['created_at'] else None))
             })
             
@@ -159,6 +170,192 @@ def get_processed_emails():
         return {"emails": []}
     finally:
         if 'conn' in locals(): conn.close()
+# ── DRAFTS & SCHEDULING ──────────────────────────────────────
+class DraftCreate(BaseModel):
+    email_action_id: int | None = None
+    content: str
+    recipient: str
+    subject: str
+    type: str
+    tags: List[str] = []
+    reasoning: str | None = None
+
+class DraftUpdate(BaseModel):
+    content: str
+
+class SchedulingUpdate(BaseModel):
+    status: str
+    scheduled_time: str | None = None
+
+@app.get("/drafts")
+def get_drafts():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM draft_replies WHERE status = 'Pending' ORDER BY created_at DESC")
+        return {"drafts": cursor.fetchall()}
+    except Exception as e:
+        print(f"Draft fetch error: {e}")
+        return {"drafts": []}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.post("/drafts")
+def create_draft(draft: DraftCreate):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO draft_replies (email_action_id, content, recipient, subject, type, tags, reasoning)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (draft.email_action_id, draft.content, draft.recipient, draft.subject, draft.type, draft.tags, draft.reasoning))
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+        return {"status": "success", "id": new_id}
+    except Exception as e:
+        print(f"Draft create error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.put("/drafts/{draft_id}")
+def update_draft(draft_id: int, draft: DraftUpdate):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE draft_replies SET content = %s WHERE id = %s", (draft.content, draft_id))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Draft update error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.delete("/drafts/{draft_id}")
+def delete_draft(draft_id: int):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM draft_replies WHERE id = %s", (draft_id,))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Draft delete error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+
+@app.post("/execute-draft/{draft_id}")
+def execute_draft_v2(draft_id: int):
+    # This triggers the n8n "Draft Execution" workflow.
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM draft_replies WHERE id = %s", (draft_id,))
+        draft = cursor.fetchone()
+        
+        if not draft:
+            return {"status": "error", "message": "Draft not found"}
+
+        # Logic to trigger n8n
+        n8n_url = os.getenv("N8N_DRAFT_EXECUTION_URL", "http://host.docker.internal:5678/webhook/execute-draft")
+        import requests
+        try:
+            resp = requests.post(n8n_url, json=draft, timeout=5)
+            resp.raise_for_status()
+        except Exception as n8err:
+            print(f"n8n trigger failed: {n8err}")
+        
+        cursor.execute("UPDATE draft_replies SET status = 'Executed' WHERE id = %s", (draft_id,))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Draft execution error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.get("/scheduled-emails")
+def get_scheduled_emails():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, payload->>'sender_email' as sender, payload->>'subject' as subject, 
+            scheduling_status, scheduled_time, google_event_id 
+            FROM email_actions 
+            WHERE scheduling_status != 'New' AND scheduled_time IS NOT NULL 
+            ORDER BY scheduled_time ASC
+        """)
+        return {"scheduled": cursor.fetchall()}
+    except Exception as e:
+        print(f"Scheduled fetch error: {e}")
+        return {"scheduled": []}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.put("/email-actions/{id}/scheduling")
+def update_email_scheduling(id: int, update: SchedulingUpdate):
+    try:
+        # Redis Lock implementation (5 minutes)
+        if redis_client:
+            lock_key = f"lock:mail:{id}"
+            if redis_client.exists(lock_key):
+                return {"status": "error", "message": "Mail is currently locked for processing. Please wait 5 minutes."}
+            redis_client.setex(lock_key, 300, "locked")
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE email_actions 
+            SET scheduling_status = %s, scheduled_time = %s 
+            WHERE id = %s
+        """, (update.status, update.scheduled_time, id))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Scheduling update error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+class ConfirmUpdate(BaseModel):
+    google_event_id: str
+
+@app.patch("/email-actions/{id}/confirm")
+def confirm_email_meeting(id: int, update: ConfirmUpdate):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE email_actions 
+            SET scheduling_status = 'Confirmed', google_event_id = %s 
+            WHERE id = %s
+        """, (update.google_event_id, id))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Confirmation update error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.put("/email-actions/{id}/ignore")
+def ignore_email_action(id: int):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE email_actions SET scheduling_status = 'Ignored' WHERE id = %s", (id,))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Ignore update error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
 
 # ── AI ASSISTANT CONFIG ───────────────────────────────────
 from langchain_groq import ChatGroq

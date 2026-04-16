@@ -6,6 +6,8 @@ import {
   BrainCircuit, Calendar
 } from 'lucide-react';
 import { useEmails } from '../hooks/useEmails';
+import toast from 'react-hot-toast';
+import axios from 'axios';
 
 const CFG = {
   Urgent_Fire:     { label: 'Urgent',    badgeClass: 'badge-urgent',   rowClass: 'row-urgent',  icon: AlertTriangle },
@@ -90,8 +92,26 @@ const EmailDetail = ({ email, onClose }) => {
 
       {/* Footer Actions */}
       <div className="p-6 border-t border-border bg-surface shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-        <button className="w-full btn btn-primary py-4 justify-center text-sm font-bold shadow-lg shadow-primary/20">
-          Execute Suggested Reply
+        <button 
+          onClick={() => {
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+            const t = toast.loading("Promoting intelligence to Hub...");
+            axios.post(`${API_BASE}/drafts`, {
+              email_action_id: email.id,
+              content: email.suggested_draft || "DRAFT: Manual review required.",
+              recipient: email.sender_email,
+              subject: `Re: ${email.subject}`,
+              type: email.classification === 'Scheduling' ? 'Scheduling' : 'General',
+              reasoning: email.intelligence_reasoning,
+              tags: [email.classification, "Manual-Promotion"]
+            }).then(() => {
+              toast.success("Ready for review in Draft Hub!", { id: t });
+              onClose();
+            }).catch(e => toast.error("Promotion pipeline break.", { id: t }));
+          }}
+          className="w-full btn btn-primary py-4 justify-center text-sm font-bold shadow-lg shadow-primary/20"
+        >
+          Stage for Review
         </button>
       </div>
     </motion.div>

@@ -44,6 +44,34 @@ def create_tables(db_url):
         ADD COLUMN IF NOT EXISTS email_received_at TIMESTAMP NULL;
         """)
 
+        # Add scheduling columns to email_actions
+        cursor.execute("""
+        ALTER TABLE email_actions
+        ADD COLUMN IF NOT EXISTS scheduling_status VARCHAR(50) DEFAULT 'New',
+        ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMP NULL,
+        ADD COLUMN IF NOT EXISTS google_event_id TEXT UNIQUE;
+        """)
+
+        # Draft Replies table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS draft_replies (
+            id SERIAL PRIMARY KEY,
+            email_action_id INTEGER REFERENCES email_actions(id),
+            content TEXT,
+            recipient TEXT,
+            subject TEXT,
+            type VARCHAR(50), 
+            tags TEXT[], 
+            reasoning TEXT,
+            status VARCHAR(50) DEFAULT 'Pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        
+        # Ensure tags and reasoning columns if table already existed
+        cursor.execute("ALTER TABLE draft_replies ADD COLUMN IF NOT EXISTS tags TEXT[];")
+        cursor.execute("ALTER TABLE draft_replies ADD COLUMN IF NOT EXISTS reasoning TEXT;")
+
         # User Profile table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_profiles (

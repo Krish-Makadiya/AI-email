@@ -30,4 +30,23 @@ def process_identity(state: GraphState) -> Dict[str, Any]:
     elif email_data.get("is_1on1", False):
         classification = "Individual"
 
-    return {"classification": classification, "user_info": user_info}
+    # Signature Logic: Student vs Developer
+    domain = sender.split('@')[-1].lower() if '@' in sender else ""
+    is_edu = domain.endswith('.edu') or "university" in sender.lower() or "college" in sender.lower()
+    
+    signature_type = "Student" if is_edu else "Developer"
+    
+    # Custom signatures
+    signatures = {
+        "Student": f"Best regards,\n{state.get('user_info', {}).get('name', 'Tanishq')}\nComputer Science Candidate",
+        "Developer": f"Regards,\n{state.get('user_info', {}).get('name', 'Tanishq')}\nFull-Stack AI Engineer | SoMailer Dev"
+    }
+    
+    user_info['signature'] = signatures.get(signature_type)
+    user_info['identity_type'] = signature_type
+
+    # Merge registry info with existing profile info
+    final_user_info = state.get("user_info", {}).copy()
+    final_user_info.update(user_info)
+
+    return {"classification": classification, "user_info": final_user_info}

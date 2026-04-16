@@ -11,6 +11,7 @@ import AssistantWidget  from './components/AssistantWidget';
 import VisionArchive    from './components/VisionArchive_Enhanced';
 import Analytics        from './components/Analytics';
 import PersonalSpace    from './components/PersonalSpace';
+import Drafts           from './components/Drafts';
 
 /* ── Live status badge ─────────────────────────────────── */
 function SystemStatus() {
@@ -104,6 +105,7 @@ function Shell() {
               )}
               {tab === 'inbox'     && <IntelligenceFeed />}
               {tab === 'analytics' && <Analytics />}
+              {tab === 'drafts'    && <Drafts />}
               {tab === 'archive'   && <VisionArchive />}
               {tab === 'settings'  && <PersonalSpace />}
             </div>
@@ -116,9 +118,12 @@ function Shell() {
   );
 }
 
+import { Toaster } from 'react-hot-toast';
+
 export default function App() {
   return (
     <ThemeProvider>
+      <Toaster position="top-right" />
       <Shell />
     </ThemeProvider>
   );
