@@ -11,11 +11,12 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        -640,
+        -64
       ],
-      "id": "e88d18b1-1",
-      "name": "Webhook"
+      "id": "234131d4-aaef-4bec-9e10-2fca6b11ed9b",
+      "name": "Webhook",
+      "webhookId": "d077bb56-9616-491d-8147-9f50c2f060ef"
     },
     {
       "parameters": {
@@ -27,12 +28,18 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
       "position": [
-        250,
-        0
+        -400,
+        -64
       ],
-      "id": "e88d18b1-2",
+      "id": "79330549-0050-45cc-ba29-4cf567e478fb",
       "name": "Send Email",
-      "credentials": { "gmailOAuth2": { "id": "tkqRW2XjpfGRoeEd", "name": "Gmail account" } }
+      "webhookId": "9e6678d0-456f-4a9e-acc9-d8756121e87b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tkqRW2XjpfGRoeEd",
+          "name": "Gmail account"
+        }
+      }
     },
     {
       "parameters": {
@@ -40,19 +47,29 @@
         "table": "draft_replies",
         "columns": {
           "mappingMode": "defineBelow",
-          "value": { "status": "Executed" },
-          "matchingColumns": [ "id" ]
-        }
+          "value": {
+            "status": "Executed"
+          },
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        500,
-        -50
+        -144,
+        -112
       ],
-      "id": "e88d18b1-3",
+      "id": "0ea019b5-8646-4401-b89b-d2fcec03cb19",
       "name": "Mark Draft Executed",
-      "credentials": { "postgres": { "id": "57onlUbW4pSOWEVy", "name": "Postgres account" } }
+      "credentials": {
+        "postgres": {
+          "id": "57onlUbW4pSOWEVy",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -60,41 +77,105 @@
         "table": "email_actions",
         "columns": {
           "mappingMode": "defineBelow",
-          "value": { "scheduling_status": "Executed" },
-          "matchingColumns": [ "id" ]
-        }
+          "value": {
+            "scheduling_status": "Executed"
+          },
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        500,
-        100
+        -144,
+        48
       ],
-      "id": "e88d18b1-4",
+      "id": "a59fb1b5-6346-48cf-8d1a-8be2d2c8261a",
       "name": "Mark Action Executed",
-      "credentials": { "postgres": { "id": "57onlUbW4pSOWEVy", "name": "Postgres account" } }
+      "credentials": {
+        "postgres": {
+          "id": "57onlUbW4pSOWEVy",
+          "name": "Postgres account"
+        }
+      }
     },
     {
-      "parameters": { "options": {} },
+      "parameters": {
+        "options": {}
+      },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        750,
-        0
+        112,
+        -64
       ],
-      "id": "e88d18b1-5",
+      "id": "98c3dfaa-c94c-4f30-87ec-57f0f5f376d4",
       "name": "Respond to Webhook"
     }
   ],
+  "pinData": {},
   "connections": {
-    "Webhook": { "main": [ [ { "node": "Send Email", "type": "main", "index": 0 } ] ] },
-    "Send Email": {
+    "Webhook": {
       "main": [
-        [ { "node": "Mark Draft Executed", "type": "main", "index": 0 } ],
-        [ { "node": "Mark Action Executed", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Mark Draft Executed": { "main": [ [ { "node": "Respond to Webhook", "type": "main", "index": 0 } ] ] },
-    "Mark Action Executed": { "main": [ [ { "node": "Respond to Webhook", "type": "main", "index": 0 } ] ] }
-  }
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Draft Executed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark Action Executed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Draft Executed": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Action Executed": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "be07d312-5438-4ed8-909e-2344664f4a10",
+  "meta": {
+    "instanceId": "8fed0a8d6c2a54f94de28c9ef58c5b89a59fc5e2c0ab498a8df1d24372114ead"
+  },
+  "id": "DdFyJtYPO5XE2UHV",
+  "tags": []
 }
