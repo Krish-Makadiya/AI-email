@@ -7,7 +7,7 @@ import {
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 export default function Drafts() {
   const [drafts, setDrafts] = useState([]);
@@ -306,7 +306,7 @@ export default function Drafts() {
                   <div className="flex items-center gap-3 text-[11px] font-bold text-primary bg-primary/5 px-4 py-3 rounded-2xl mb-6 border border-primary/10">
                     <Clock size={14} />
                     {item.scheduled_time 
-                      ? `${new Date(item.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${new Date(item.scheduled_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                      ? `${new Date(item.scheduled_time + (item.scheduled_time.endsWith('Z') ? '' : 'Z')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${new Date(item.scheduled_time + (item.scheduled_time.endsWith('Z') ? '' : 'Z')).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
                       : 'Time Pending Sync...'
                     }
                   </div>
