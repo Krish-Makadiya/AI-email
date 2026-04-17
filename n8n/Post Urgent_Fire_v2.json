@@ -1,5 +1,5 @@
 {
-  "name": "Post Urgent_Fire_v2",
+  "name": "Post Urgent_Fire Tiered v2",
   "nodes": [
     {
       "parameters": {
@@ -10,14 +10,12 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [
-        -3472,
-        992
-      ],
-      "id": "d8493ac4-7a79-4a82-bf53-567e1686dcdd",
+      "position": [-448, 192],
+      "id": "086d3742-11e8-4b88-aa44-e4e2921afd47",
       "name": "Webhook",
-      "webhookId": "089471a7-1336-4e27-991c-a53a8b87e00e"
+      "webhookId": "c69bd0d4-a726-4c1c-a9a7-bf7a9337c32a"
     },
+
     {
       "parameters": {
         "rules": {
@@ -32,6 +30,7 @@
                 },
                 "conditions": [
                   {
+                    "id": "ss-resolved-01",
                     "leftValue": "={{ $json.body.status }}",
                     "rightValue": "resolved",
                     "operator": {
@@ -55,6 +54,7 @@
                 },
                 "conditions": [
                   {
+                    "id": "ss-escalated-01",
                     "leftValue": "={{ $json.body.status }}",
                     "rightValue": "escalated",
                     "operator": {
@@ -78,6 +78,7 @@
                 },
                 "conditions": [
                   {
+                    "id": "ss-fp-01",
                     "leftValue": "={{ $json.body.status }}",
                     "rightValue": "false_positive",
                     "operator": {
@@ -97,13 +98,11 @@
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
-      "position": [
-        -3248,
-        976
-      ],
-      "id": "c2c02793-2866-4a6f-9615-c7ca68e80daa",
+      "position": [-224, 176],
+      "id": "67b1e1db-c915-48c8-92c3-a3a4458bc9ac",
       "name": "Status Switch"
     },
+
     {
       "parameters": {
         "rules": {
@@ -118,17 +117,19 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $('Webhook').item.json.body.analysis.urgency_score }}",
+                    "id": "ts-t1-lte50",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
                     "rightValue": 50,
                     "operator": {
                       "type": "number",
                       "operation": "lte"
-                    },
-                    "id": "b2f4ba74-6ac5-4985-8020-8379291b09f7"
+                    }
                   }
                 ],
                 "combinator": "and"
-              }
+              },
+              "renameOutput": true,
+              "outputKey": "Tier 1"
             },
             {
               "conditions": {
@@ -140,8 +141,17 @@
                 },
                 "conditions": [
                   {
-                    "id": "43a26200-03e2-4f30-abce-a4ec41760292",
-                    "leftValue": "={{ $('Webhook').item.json.body.analysis.urgency_score }}",
+                    "id": "ts-t2-gt50",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
+                    "rightValue": 50,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  },
+                  {
+                    "id": "ts-t2-lte70",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
                     "rightValue": 70,
                     "operator": {
                       "type": "number",
@@ -150,7 +160,9 @@
                   }
                 ],
                 "combinator": "and"
-              }
+              },
+              "renameOutput": true,
+              "outputKey": "Tier 2"
             },
             {
               "conditions": {
@@ -162,8 +174,17 @@
                 },
                 "conditions": [
                   {
-                    "id": "d240a97c-5d07-4a24-9d52-1db983d10852",
-                    "leftValue": "={{ $('Webhook').item.json.body.analysis.urgency_score }}",
+                    "id": "ts-t3-gt70",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
+                    "rightValue": 70,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  },
+                  {
+                    "id": "ts-t3-lte85",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
                     "rightValue": 85,
                     "operator": {
                       "type": "number",
@@ -172,7 +193,9 @@
                   }
                 ],
                 "combinator": "and"
-              }
+              },
+              "renameOutput": true,
+              "outputKey": "Tier 3"
             },
             {
               "conditions": {
@@ -184,8 +207,8 @@
                 },
                 "conditions": [
                   {
-                    "id": "27176c3d-979c-468a-b915-c93c2c78c3c3",
-                    "leftValue": "={{ $('Webhook').item.json.body.analysis.urgency_score }}",
+                    "id": "ts-t4-gt85",
+                    "leftValue": "={{ $json.body.analysis.urgency_score }}",
                     "rightValue": 85,
                     "operator": {
                       "type": "number",
@@ -194,7 +217,9 @@
                   }
                 ],
                 "combinator": "and"
-              }
+              },
+              "renameOutput": true,
+              "outputKey": "Tier 4"
             }
           ]
         },
@@ -202,34 +227,28 @@
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
-      "position": [
-        -2992,
-        1200
-      ],
-      "id": "d164ef91-69a1-4051-9527-dcc83178d58e",
+      "position": [0, 320],
+      "id": "urgency-tier-switch",
       "name": "Urgency Tier Switch"
     },
+
     {
       "parameters": {
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0ASWM6TRK5",
+          "value": "C0ABR4QV82K",
           "mode": "list",
           "cachedResultName": "prod-issues"
         },
-        "text": "=🔍 *Tier 1 Alert: Low Urgency* ({{ $json.body.analysis.urgency_score }}%)\n*Subject:* {{ $json.body.mail.subject }}\n*Summary:* {{ $json.body.analysis.summary }}",
+        "text": "=:mag: *Tier 1: Low Urgency Signal* (Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%)\n*Subject:* {{ $('Webhook').item.json.body.mail.subject }}\n*Summary:* {{ $('Webhook').item.json.body.analysis.summary }}\n*From:* {{ $('Webhook').item.json.body.mail.sender_mail }}",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
-      "position": [
-        -2736,
-        992
-      ],
-      "id": "6f396e1a-e9c0-42fe-9eb6-b27af4e03fee",
-      "name": "Tier 1: Slack",
-      "webhookId": "9e140216-b403-498e-ad2e-c460c11fd835",
+      "position": [256, 128],
+      "id": "tier1-slack",
+      "name": "Tier 1: Slack #prod-issues",
       "credentials": {
         "slackApi": {
           "id": "A4HawA8XorXQ0Hpr",
@@ -237,13 +256,14 @@
         }
       }
     },
+
     {
       "parameters": {
         "project": {
           "__rl": true,
           "value": "10001",
           "mode": "list",
-          "cachedResultName": "Demo"
+          "cachedResultName": "DEMO"
         },
         "issueType": {
           "__rl": true,
@@ -251,18 +271,15 @@
           "mode": "list",
           "cachedResultName": "Bug"
         },
-        "summary": "=Tier 2 Task: {{ $json.body.analysis.summary }}",
+        "summary": "=Tier 2 | {{ $('Webhook').item.json.body.analysis.entities.issue_type }}: {{ $('Webhook').item.json.body.analysis.summary }}",
         "additionalFields": {
-          "description": "=Urgency Score: {{ $json.body.analysis.urgency_score }}%\nSender: {{ $json.body.mail.sender_mail }}"
+          "description": "=Urgency Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%\nSender: {{ $('Webhook').item.json.body.mail.sender_mail }}\nAffected System: {{ $('Webhook').item.json.body.analysis.entities.affected_system }}"
         }
       },
       "type": "n8n-nodes-base.jira",
       "typeVersion": 1,
-      "position": [
-        -2736,
-        1184
-      ],
-      "id": "ba848957-9f98-4ed7-ad38-a5e5e208b7eb",
+      "position": [256, 320],
+      "id": "tier2-jira",
       "name": "Tier 2: Jira Task",
       "credentials": {
         "jiraSoftwareCloudApi": {
@@ -271,6 +288,7 @@
         }
       }
     },
+
     {
       "parameters": {
         "select": "channel",
@@ -280,18 +298,14 @@
           "mode": "list",
           "cachedResultName": "prod-issues"
         },
-        "text": "=⚠️ *Tier 2 Attention:* @on-call High Probability Issue ({{ $json.body.analysis.urgency_score }}%)\nSummary: {{ $json.body.analysis.summary }}",
+        "text": "=:warning: *Tier 2 Alert* — @on-call (Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%)\n*Summary:* {{ $('Webhook').item.json.body.analysis.summary }}\n*Routing:* {{ $('Webhook').item.json.body.analysis.entities.routing }}",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
-      "position": [
-        -2512,
-        1184
-      ],
-      "id": "4d6d2b0a-4301-413a-8bdf-37c7daf75543",
+      "position": [480, 320],
+      "id": "tier2-slack",
       "name": "Tier 2: Slack Alert",
-      "webhookId": "358f80dd-f37f-423e-b934-079a56f8ee93",
       "credentials": {
         "slackApi": {
           "id": "A4HawA8XorXQ0Hpr",
@@ -299,21 +313,18 @@
         }
       }
     },
+
     {
       "parameters": {
+        "resource": "message",
         "from": "+16414294864",
         "to": "+919370811516",
-        "toWhatsapp": true,
-        "message": "={{ \"🚨 URGENT (Tier 3): \" + $json.body.analysis.urgency_score + \"% Urgency. \\nSystem: \" + $json.body.analysis.entities.affected_system + \" \\nIssue: \" + $json.body.analysis.entities.issue_type + \" \\nSummary: \" + $json.body.analysis.summary + \" \\nCheck the SoMailer Dashboard immediately.\" }}",
-        "options": {}
+        "message": "=SoMailer URGENT Tier 3 Alert. Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%. System: {{ $('Webhook').item.json.body.analysis.entities.affected_system }}. {{ $('Webhook').item.json.body.analysis.summary }}. Check dashboard immediately."
       },
       "type": "n8n-nodes-base.twilio",
       "typeVersion": 1,
-      "position": [
-        -2736,
-        1376
-      ],
-      "id": "e05bc2b2-7c76-415d-a48a-d8860c47f225",
+      "position": [256, 512],
+      "id": "tier3-twilio",
       "name": "Tier 3: Twilio SMS",
       "credentials": {
         "twilioApi": {
@@ -322,13 +333,14 @@
         }
       }
     },
+
     {
       "parameters": {
         "project": {
           "__rl": true,
           "value": "10001",
           "mode": "list",
-          "cachedResultName": "Demo"
+          "cachedResultName": "DEMO"
         },
         "issueType": {
           "__rl": true,
@@ -336,18 +348,15 @@
           "mode": "list",
           "cachedResultName": "Bug"
         },
-        "summary": "=Tier 3 BUG: {{ $json.body.analysis.summary }}",
+        "summary": "=[Tier 3 HIGH] {{ $('Webhook').item.json.body.analysis.entities.issue_type }}: {{ $('Webhook').item.json.body.analysis.summary }}",
         "additionalFields": {
-          "priority": "High"
+          "description": "=Urgency Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%\nAffected: {{ $('Webhook').item.json.body.analysis.entities.affected_system }}\nRouting: {{ $('Webhook').item.json.body.analysis.entities.routing }}"
         }
       },
       "type": "n8n-nodes-base.jira",
       "typeVersion": 1,
-      "position": [
-        -2512,
-        1376
-      ],
-      "id": "44ed3e2c-630b-4b65-8169-141190dc2b87",
+      "position": [480, 512],
+      "id": "tier3-jira",
       "name": "Tier 3: Jira Bug",
       "credentials": {
         "jiraSoftwareCloudApi": {
@@ -356,21 +365,19 @@
         }
       }
     },
+
     {
       "parameters": {
         "resource": "call",
         "from": "+16414294864",
         "to": "+919370811516",
-        "message": "=Critical Escalation Tier 4. Urgency Score is {{ $json.body.analysis.urgency_score }} percent. Immediate action required. Summary: {{ $json.body.analysis.summary }}.",
+        "message": "=CRITICAL TIER 4 ESCALATION from SoMailer. Urgency score is {{ $('Webhook').item.json.body.analysis.urgency_score }} percent. System affected: {{ $('Webhook').item.json.body.analysis.entities.affected_system }}. Summary: {{ $('Webhook').item.json.body.analysis.summary }}. Immediate action required. Please check your SoMailer dashboard now.",
         "options": {}
       },
       "type": "n8n-nodes-base.twilio",
       "typeVersion": 1,
-      "position": [
-        -2736,
-        1568
-      ],
-      "id": "dc73409a-59b5-4b13-9e67-ca66ce3e9c80",
+      "position": [256, 704],
+      "id": "tier4-twilio",
       "name": "Tier 4: Twilio Call",
       "credentials": {
         "twilioApi": {
@@ -379,13 +386,14 @@
         }
       }
     },
+
     {
       "parameters": {
         "project": {
           "__rl": true,
           "value": "10001",
           "mode": "list",
-          "cachedResultName": "Demo"
+          "cachedResultName": "DEMO"
         },
         "issueType": {
           "__rl": true,
@@ -393,18 +401,15 @@
           "mode": "list",
           "cachedResultName": "Bug"
         },
-        "summary": "=🚨 EMERGENCY (Tier 4): {{ $json.body.analysis.summary }}",
+        "summary": "=[EMERGENCY Tier 4] {{ $('Webhook').item.json.body.analysis.summary }}",
         "additionalFields": {
-          "priority": "Highest"
+          "description": "=CRITICAL EMERGENCY\n\nUrgency Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%\nSystem: {{ $('Webhook').item.json.body.analysis.entities.affected_system }}\nError: {{ $('Webhook').item.json.body.analysis.entities.error_code }}\nRouting: {{ $('Webhook').item.json.body.analysis.entities.routing }}\nSender: {{ $('Webhook').item.json.body.mail.sender_mail }}"
         }
       },
       "type": "n8n-nodes-base.jira",
       "typeVersion": 1,
-      "position": [
-        -2512,
-        1568
-      ],
-      "id": "054b0739-1703-4234-a520-772bc239d91b",
+      "position": [480, 704],
+      "id": "tier4-jira",
       "name": "Tier 4: Emergency Jira",
       "credentials": {
         "jiraSoftwareCloudApi": {
@@ -413,6 +418,7 @@
         }
       }
     },
+
     {
       "parameters": {
         "select": "channel",
@@ -422,18 +428,14 @@
           "mode": "list",
           "cachedResultName": "prod-issues"
         },
-        "text": "=<!channel> 🔥 *CRITICAL ESCALATION (Tier 4)* - Urgency Score: {{ $json.body.analysis.urgency_score }}%\n*Summary:* {{ $json.body.analysis.summary }}",
+        "text": "=<!channel> :fire: *CRITICAL ESCALATION — Tier 4* (Score: {{ $('Webhook').item.json.body.analysis.urgency_score }}%)\n*System:* {{ $('Webhook').item.json.body.analysis.entities.affected_system }}\n*Summary:* {{ $('Webhook').item.json.body.analysis.summary }}\n*Routing:* {{ $('Webhook').item.json.body.analysis.entities.routing }}\n*Error Code:* `{{ $('Webhook').item.json.body.analysis.entities.error_code }}`",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
-      "position": [
-        -2288,
-        1568
-      ],
-      "id": "0f47f77d-2e07-49ed-9d7b-09d3763f465d",
+      "position": [704, 704],
+      "id": "tier4-slack",
       "name": "Tier 4: Slack <!channel>",
-      "webhookId": "2fc0a5dd-a9c0-4f81-a365-3680aba00f0b",
       "credentials": {
         "slackApi": {
           "id": "A4HawA8XorXQ0Hpr",
@@ -441,106 +443,94 @@
         }
       }
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"flagged_low\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'flagged_low' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        992
-      ],
-      "id": "fd483f86-35ff-4ff8-9e57-63fef3bc863d",
-      "name": "Code: Low Status"
+      "position": [1024, 128],
+      "id": "code-low",
+      "name": "Prepare flagged_low"
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"flagged_medium\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'flagged_medium' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        1184
-      ],
-      "id": "56ba2f04-deee-47e8-9bd1-565a64b6632c",
-      "name": "Code: Medium Status"
+      "position": [1024, 320],
+      "id": "code-medium",
+      "name": "Prepare flagged_medium"
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"flagated_high\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'flagated_high' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        1376
-      ],
-      "id": "55243617-fbb0-432a-aebf-89cabf2c2f14",
-      "name": "Code: High Status"
+      "position": [1024, 512],
+      "id": "code-high",
+      "name": "Prepare flagated_high"
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"critical_escalation\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'critical_escalation' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        1568
-      ],
-      "id": "84feca04-599a-4a1c-857a-44ed9f953371",
-      "name": "Code: Critical Status"
+      "position": [1024, 704],
+      "id": "code-critical",
+      "name": "Prepare critical"
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"resolved\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'resolved' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        800
-      ],
-      "id": "6135c8f4-4c1e-4e75-b493-99d822ac54be",
-      "name": "Code: Resolved Status"
+      "position": [1024, -128],
+      "id": "code-resolved",
+      "name": "Prepare resolved"
     },
+
     {
       "parameters": {
-        "jsCode": "return {\n  id: $('Webhook').first().json.body.card_id,\n  status: \"false_positive\"\n}"
+        "jsCode": "const rawId = $('Webhook').first().json.body.card_id;\nconst id = parseInt(rawId, 10);\nif (isNaN(id)) throw new Error('card_id must be a numeric integer, got: ' + rawId);\nreturn { id, scheduling_status: 'false_positive' };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -1968,
-        1760
-      ],
-      "id": "9e50ab97-27c5-42c0-8a91-7d0dfce75a7e",
-      "name": "Code: FP Status"
+      "position": [1024, 896],
+      "id": "code-false-positive",
+      "name": "Prepare false_positive"
     },
+
     {
       "parameters": {
         "operation": "update",
-        "schema": "public",
-        "table": "email_actions",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "email_actions",
+          "mode": "list",
+          "cachedResultName": "email_actions"
+        },
         "columns": {
-          "0": "p",
-          "1": "a",
-          "2": "y",
-          "3": "l",
-          "4": "o",
-          "5": "a",
-          "6": "d",
           "mappingMode": "defineBelow",
           "value": {
-            "id": "={{ $json.id }}",
-            "scheduling_status": "={{ $json.status }}",
-            "payload": "={{ JSON.stringify($node[\"Webhook\"].json.body) }}"
+            "scheduling_status": "={{ $json.scheduling_status }}"
           },
-          "matchingColumns": [
-            "id"
-          ],
+          "matchingColumns": ["id"],
           "schema": [
             {
               "id": "id",
@@ -552,67 +542,13 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "payload",
-              "displayName": "payload",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "object",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "email_received_at",
-              "displayName": "email_received_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true
-            },
-            {
               "id": "scheduling_status",
               "displayName": "scheduling_status",
               "required": false,
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "scheduled_time",
-              "displayName": "scheduled_time",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "external_event_id",
-              "displayName": "external_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "google_event_id",
-              "displayName": "google_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -622,11 +558,8 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [
-        -1744,
-        1200
-      ],
-      "id": "9e4f39a3-160c-4d74-aecf-c3638dcdeba3",
+      "position": [1344, 384],
+      "id": "postgres-update",
       "name": "Update Postgres",
       "credentials": {
         "postgres": {
@@ -635,268 +568,80 @@
         }
       }
     },
+
     {
       "parameters": {
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [
-        -1552,
-        1200
-      ],
-      "id": "63489b95-8907-4d71-b3f1-d665dfc1bc92",
+      "position": [1536, 384],
+      "id": "respond-node",
       "name": "Respond to Webhook"
     }
   ],
-  "pinData": {},
+
   "connections": {
     "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Status Switch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Status Switch", "type": "main", "index": 0 }]]
     },
     "Status Switch": {
       "main": [
-        [
-          {
-            "node": "Code: Resolved Status",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Urgency Tier Switch",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Code: FP Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Prepare resolved",       "type": "main", "index": 0 }],
+        [{ "node": "Urgency Tier Switch",     "type": "main", "index": 0 }],
+        [{ "node": "Prepare false_positive",  "type": "main", "index": 0 }]
       ]
     },
     "Urgency Tier Switch": {
       "main": [
-        [
-          {
-            "node": "Tier 1: Slack",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Tier 2: Jira Task",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Tier 3: Twilio SMS",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Tier 4: Twilio Call",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [],
-        [],
-        []
+        [{ "node": "Tier 1: Slack #prod-issues", "type": "main", "index": 0 }],
+        [{ "node": "Tier 2: Jira Task",           "type": "main", "index": 0 }],
+        [{ "node": "Tier 3: Twilio SMS",           "type": "main", "index": 0 }],
+        [{ "node": "Tier 4: Twilio Call",          "type": "main", "index": 0 }]
       ]
     },
-    "Tier 1: Slack": {
-      "main": [
-        [
-          {
-            "node": "Code: Low Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Tier 1: Slack #prod-issues": {
+      "main": [[{ "node": "Prepare flagged_low",   "type": "main", "index": 0 }]]
     },
     "Tier 2: Jira Task": {
-      "main": [
-        [
-          {
-            "node": "Tier 2: Slack Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Tier 2: Slack Alert",   "type": "main", "index": 0 }]]
     },
     "Tier 2: Slack Alert": {
-      "main": [
-        [
-          {
-            "node": "Code: Medium Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Prepare flagged_medium", "type": "main", "index": 0 }]]
     },
     "Tier 3: Twilio SMS": {
-      "main": [
-        [
-          {
-            "node": "Tier 3: Jira Bug",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Tier 3: Jira Bug",      "type": "main", "index": 0 }]]
     },
     "Tier 3: Jira Bug": {
-      "main": [
-        [
-          {
-            "node": "Code: High Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Prepare flagated_high",  "type": "main", "index": 0 }]]
     },
     "Tier 4: Twilio Call": {
-      "main": [
-        [
-          {
-            "node": "Tier 4: Emergency Jira",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Tier 4: Emergency Jira", "type": "main", "index": 0 }]]
     },
     "Tier 4: Emergency Jira": {
-      "main": [
-        [
-          {
-            "node": "Tier 4: Slack <!channel>",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Tier 4: Slack <!channel>", "type": "main", "index": 0 }]]
     },
     "Tier 4: Slack <!channel>": {
-      "main": [
-        [
-          {
-            "node": "Code: Critical Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Prepare critical",       "type": "main", "index": 0 }]]
     },
-    "Code: Resolved Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Low Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Medium Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: High Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Critical Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: FP Status": {
-      "main": [
-        [
-          {
-            "node": "Update Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Postgres": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Prepare flagged_low":    { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Prepare flagged_medium": { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Prepare flagated_high":  { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Prepare critical":       { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Prepare resolved":       { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Prepare false_positive": { "main": [[{ "node": "Update Postgres", "type": "main", "index": 0 }]] },
+    "Update Postgres":        { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
   },
-  "active": true,
+
+  "active": false,
   "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate"
+    "executionOrder": "v1"
   },
-  "versionId": "7058e0b1-3152-4db7-ba46-51ed9bf93c04",
+  "versionId": "puf-tiered-v2-fixed",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "8fed0a8d6c2a54f94de28c9ef58c5b89a59fc5e2c0ab498a8df1d24372114ead"
   },
-  "id": "odGz0asapLJDVJVl",
+  "id": "puf-tiered-v2",
   "tags": []
 }

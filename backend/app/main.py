@@ -57,7 +57,6 @@ class EmailInput(BaseModel):
     is_1on1: bool = False
     attachment_analysis: str = ""
     received_at: str | None = None
-    card_id: int | None = None
 
 @app.post("/process-email")
 def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks):
@@ -74,8 +73,7 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         "body": email_dict.get("content"),
         "is_1on1": email_dict.get("is_1on1", False),
         "attachment_analysis": email_dict.get("attachment_analysis", ""),
-        "email_received_at": email_dict.get("received_at"),
-        "card_id": email_dict.get("card_id")
+        "email_received_at": email_dict.get("received_at")
     }
 
     # 0. Fetch user profile for graph context

@@ -35,7 +35,7 @@ Structure:
   "intelligence_reasoning": "Brief explanation of why this draft/action was chosen based on email context.",
   "payload": {{
     "summary": "High-density actionable summary",
-    "card_id": 1,
+    "card_id": "uuid-placeholder-or-db-id",
     "analysis": {{
       "entities": {{
         "issue_type": "Server Down",
@@ -120,36 +120,16 @@ Structure:
             command_package["action"] = "spam_filter"
             command_package["payload"] = {"summary": "Spam filtered."}
 
-    # Normalize urgency_score to 0-100
-    # The LLM output is in command_package['payload']['analysis']['urgency_score']
-    # If not found, check root of command_package, then fallback to 1
-    raw_score = command_package.get('payload', {}).get('analysis', {}).get('urgency_score')
-    if raw_score is None:
-        raw_score = command_package.get('urgency_score', 1)
-        
+    # Normalize urgency_score to 0-100 (assuming LLM sends 0-10)
+    raw_score = result.get("urgency_score", 1)
     if raw_score <= 10:
         normalized_score = raw_score * 10
     else:
         normalized_score = raw_score
 
-    # Force Tiered Escalation Routing:
-    # If urgency is significant (>50) OR category is Urgent_Fire, force trigger_incident
-    if normalized_score > 50 or category == "Urgent_Fire":
-        command_package["action"] = "trigger_incident"
-        command_package["status"] = "resolved" if category == "FYI_Read" else "escalated"
-        # Overwrite internal category to ensure dispatcher picks the N8N_URGENT_WEBHOOK
-        category = "Urgent_Fire"
-
     # Force injection of strictly required n8n fields
     payload = command_package.get("payload", {})
-    # Strictly prioritize card_id from email_data (from test script) and force Integer type
-    state_card_id = email_data.get("card_id")
-    final_id = state_card_id if state_card_id is not None else payload.get("card_id", 1)
-    
-    try:
-        payload["card_id"] = int(float(final_id)) # Handle potential string numbers or floats
-    except:
-        payload["card_id"] = 1
+    if "card_id" not in payload: payload["card_id"] = "mock_db_card_123"
     
     if "analysis" not in payload:
         payload["analysis"] = {

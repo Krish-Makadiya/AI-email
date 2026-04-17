@@ -36,12 +36,7 @@ User Context: {user_name} | Goal: {daily_goal} | Preference: {tone}
 Output JSON Template:
 {{"category": "Urgent_Fire", "urgency_score": 9, "short_summary": "Summary of the request."}}
 
-Allowed Categories: [Urgent_Fire, Scheduling, Action_Required, FYI_Read, Cold_Outreach]
-
-STRICT CATEGORY RULES:
-- If subject contains "URGENT", "INCIDENT", "FIRE", or "BROKEN", category MUST be "Urgent_Fire".
-- If body describes a technical error, bug, or system failure, category MUST be "Urgent_Fire".
-- If it is a meeting request or time suggestion, category MUST be "Scheduling"."""
+Allowed Categories: [Urgent_Fire, Scheduling, Action_Required, FYI_Read, Cold_Outreach]"""
     )
     
     try:
@@ -103,13 +98,6 @@ STRICT CATEGORY RULES:
     
     # Normalize category: remove pipes and ensure it's in the allowed list
     cat = str(result.get("category", "FYI_Read")).split('|')[0].strip()
-    
-    # Programmatic Override: If subject contains escalation keywords, force Urgent_Fire
-    subject_upper = subject.upper()
-    escalation_keywords = ["URGENT", "INCIDENT", "FIRE", "BROKEN", "BUG", "ERROR", "FAILURE"]
-    if any(kw in subject_upper for kw in escalation_keywords):
-        cat = "Urgent_Fire"
-    
     allowed = ["Urgent_Fire", "Scheduling", "Action_Required", "FYI_Read", "Cold_Outreach"]
     if cat not in allowed:
         # Check if it contains any of the keywords
