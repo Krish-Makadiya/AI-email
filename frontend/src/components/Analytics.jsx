@@ -1,32 +1,80 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
-import { TrendingUp, Users, Zap, ShieldAlert, FileText, Calendar, Clock } from 'lucide-react';
+import { Info, Search, Columns, Download } from 'lucide-react';
 import { useEmails } from '../hooks/useEmails';
 
-const COLORS = {
-  Urgent_Fire: '#e11d48', // Red
-  Action_Required: '#f59e0b', // Amber
-  FYI_Read: '#16a34a', // Green
-  Scheduling: '#2563eb', // Blue
-  Cold_Outreach: '#94a3b8' // Slate
+// Inherit global semantic variables for diagrams to guarantee perfect light/dark contrast
+const AREA_CHART_COLOR = 'var(--primary)'; 
+
+const PIE_COLORS = {
+  Urgent_Fire: 'var(--primary)',     
+  Action_Required: 'var(--amber)', 
+  FYI_Read: 'var(--blue)',        
+  Scheduling: 'var(--green)',      
+  Cold_Outreach: '#8b5cf6'    
 };
 
+// Container animations
 const containerVariants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15 }
-  }
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } }
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 200 } }
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 20, stiffness: 200 } }
 };
+
+const MiniBarChart = ({ color, isFilled }) => {
+  const heights = [40, 60, 30, 80, 50, 90, 40, 70, 60, 50, 80, 40, 60, 40, 70];
+  return (
+    <div className="flex items-end justify-between h-24 w-full gap-[2px] mt-2">
+      {heights.map((h, i) => (
+        <div 
+          key={i} 
+          className="w-full rounded-t-sm" 
+          style={{ 
+            height: `${h}%`, 
+            backgroundColor: isFilled ? 'white' : color,
+            opacity: isFilled ? (i % 2 === 0 ? 0.9 : 0.6) : (i % 2 === 0 ? 0.3 : 0.15) 
+          }} 
+        />
+      ))}
+    </div>
+  )
+}
+
+function StatCard({ title, value, subtext, color, isFilled, trend, trendUp }) {
+  return (
+    <div 
+      className={`p-4 rounded-xl border ${isFilled ? 'border-transparent shadow-md' : 'border-border shadow-sm bg-surface text-text'} flex flex-col h-[230px] relative overflow-hidden`} 
+      style={isFilled ? { backgroundColor: 'var(--primary)', color: 'white', boxShadow: `0 4px 14px 0 var(--primary-bg)` } : {}}
+    >
+      <div className="flex justify-between items-center mb-1">
+        <span className={`text-xs font-semibold ${isFilled ? 'text-white/95' : 'text-text-2'}`}>{title}</span>
+        <Info size={14} className={isFilled ? 'text-white/70' : 'text-text-3'} />
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-3xl font-bold tracking-tight">{value}</span>
+        {trend && (
+           <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${isFilled ? 'bg-white/20 text-white' : 'bg-surface2 text-text-2'}`}>
+             {trendUp ? '↗' : '↘'} {trend}
+           </span>
+        )}
+      </div>
+      <div className={`text-[11px] mt-1 font-medium ${isFilled ? 'text-white/80' : 'text-text-3'}`}>
+        {value} {subtext}
+      </div>
+      <div className="mt-auto">
+        <MiniBarChart color={isFilled ? '#ffffff' : color} isFilled={isFilled} />
+      </div>
+    </div>
+  )
+}
 
 export default function Analytics() {
   const { emails, loading } = useEmails();
@@ -53,13 +101,12 @@ export default function Analytics() {
     const classificationMix = Object.entries(classCounts).map(([name, value]) => ({ name, value }));
 
     // 3. Rising Relationships (First 25 vs Last 25)
-    // Backend returns LIMIT 50 ORDER BY created_at DESC, so [0-24] is NEW, [25-49] is OLD
     const newHalf = emails.slice(0, 25);
     const oldHalf = emails.slice(25, 50);
 
     const newCounts = {};
     newHalf.forEach(e => newCounts[e.sender_email] = (newCounts[e.sender_email] || 0) + 1);
-    
+
     const oldCounts = {};
     oldHalf.forEach(e => oldCounts[e.sender_email] = (oldCounts[e.sender_email] || 0) + 1);
 
@@ -78,11 +125,17 @@ export default function Analytics() {
 
   if (loading && !analyticsData) {
     return (
-      <div className="p-8 space-y-8">
-        <div className="h-12 w-48 skeleton" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="h-80 skeleton" />
-          <div className="h-80 skeleton" />
+      <div className="w-full max-w-[1800px] px-3 md:px-5 mx-auto space-y-3 h-full bg-bg py-4">
+        <div className="h-8 w-48 bg-surface2 animate-pulse rounded-md" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="h-[130px] bg-surface border border-border animate-pulse rounded-xl" />
+          <div className="h-[130px] bg-surface2 animate-pulse rounded-xl" />
+          <div className="h-[130px] bg-surface border border-border animate-pulse rounded-xl" />
+          <div className="h-[130px] bg-surface border border-border animate-pulse rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="lg:col-span-2 h-[300px] bg-surface border border-border animate-pulse rounded-xl" />
+          <div className="h-[300px] bg-surface border border-border animate-pulse rounded-xl" />
         </div>
       </div>
     );
@@ -91,162 +144,252 @@ export default function Analytics() {
   if (!analyticsData) return null;
 
   return (
-    <motion.div 
-      className="p-8 max-w-7xl mx-auto"
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-    >
-      <header className="mb-10">
-        <h1 className="text-2xl font-bold tracking-tight">Networking Intelligence</h1>
-        <p className="text-[var(--text-3)] text-sm mt-1">
-          Behavioral insights generated from {analyticsData.total} signals using Gemini 2.0 Flash.
-        </p>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* TOP SENDERS BAR CHART */}
-        <motion.div variants={itemVariants} className="lg:col-span-2 glass-card rounded-2xl p-6 relative overflow-hidden">
-          <div className="flex items-center gap-2 mb-6">
-            <Users size={18} className="text-[var(--primary)]" />
-            <h2 className="font-bold text-lg">Relationship Heatmap</h2>
+    <div className="min-h-full bg-bg font-sans pb-6 pt-3">
+      <motion.div 
+        className="w-full max-w-[1800px] px-3 md:px-5 mx-auto"
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+      >
+        {/* HEADER SECTION */}
+        <div className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border pb-2.5">
+          <h1 className="text-lg font-bold tracking-tight text-text flex items-center gap-2">
+             Email Analytics
+          </h1>
+          <div className="flex items-center gap-3">
+             <div className="w-7 h-7 rounded-full bg-surface2 flex items-center justify-center text-text-2 font-bold text-xs">
+                MJ
+             </div>
+             <span className="text-xs font-semibold text-text-2">Michael Jack</span>
           </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analyticsData.topSenders} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--text-3)', fontSize: 11 }}
-                  interval={0}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-3)', fontSize: 11 }} />
-                <Tooltip 
-                  cursor={{ fill: 'var(--surface2)' }}
-                  contentStyle={{ 
-                    background: 'var(--surface)', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-                <Bar 
-                  dataKey="value" 
-                  fill="var(--primary)" 
-                  radius={[4, 4, 0, 0]} 
-                  animationDuration={1500}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        {/* CLASSIFICATION DONUT */}
-        <motion.div variants={itemVariants} className="glass-card rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Zap size={18} className="text-[var(--amber)]" />
-            <h2 className="font-bold text-lg">Signals Breakdown</h2>
-          </div>
-          <div className="h-[300px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={analyticsData.classificationMix}
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                  animationDuration={1500}
-                >
-                  {analyticsData.classificationMix.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[entry.name] || '#64748b'} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                   contentStyle={{ 
-                    background: 'var(--surface)', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }}
-                />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36} 
-                  formatter={(value) => <span className="text-[11px] text-[var(--text-2)]">{value.replace('_', ' ')}</span>}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* RISING RELATIONSHIPS */}
-      <motion.div variants={itemVariants} className="glass-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <TrendingUp size={18} className="text-[var(--green)]" />
-          <h2 className="font-bold text-lg">Rising Relationships</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {analyticsData.rising.map((item, idx) => (
-            <div key={item.email} className="bg-[var(--surface2)] rounded-xl p-4 border border-[var(--border)] relative overflow-hidden group">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 rounded-full bg-[var(--primary-bg)] text-[var(--primary)] flex items-center justify-center text-xs font-bold">
-                  {item.email.charAt(0).toUpperCase()}
+
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[13px] font-bold text-text uppercase tracking-wider">Overview Delivery</h2>
+          <button className="text-xs font-semibold text-text-2 bg-surface shadow-sm border border-border px-3 py-1.5 rounded-md hover:bg-surface2 transition-colors">
+            Save Report
+          </button>
+        </div>
+
+        {/* TOP ROW: KEY METRICS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <StatCard 
+            title="Urgency Rate" 
+            value={analyticsData.classificationMix.find(c => c.name === 'Urgent_Fire')?.value || 0} 
+            subtext="Urgent"
+            color="var(--primary)" 
+            trend="1.2%"
+            trendUp={true}
+            isFilled={false}
+          />
+          <StatCard 
+            title="Information Rate" 
+            value={analyticsData.classificationMix.find(c => c.name === 'FYI_Read')?.value || 0} 
+            subtext="Delivered"
+            color="var(--primary)" 
+            trend="0.9%"
+            trendUp={true}
+            isFilled={true}
+          />
+          <StatCard 
+            title="Action Required" 
+            value={(analyticsData.classificationMix.find(c => c.name === 'Scheduling')?.value || 0) + (analyticsData.classificationMix.find(c => c.name === 'Action_Required')?.value || 0)} 
+            subtext="Actionable"
+            color="var(--amber)" 
+            trend="0.5%"
+            trendUp={false}
+            isFilled={false}
+          />
+          <StatCard 
+            title="Spam Report Rate" 
+            value={analyticsData.topSenders.length} 
+            subtext="Unique Senders"
+            color="var(--primary)" 
+            trend="0.7%"
+            trendUp={false}
+            isFilled={false}
+          />
+        </div>
+
+        {/* MIDDLE ROW: CHARTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+          {/* RELATIONSHIP HEATMAP */}
+          <motion.div variants={itemVariants} className="lg:col-span-2 bg-surface border border-border rounded-xl shadow-sm p-4">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-sm text-text">Email Data Cart</h3>
+                <Info size={14} className="text-text-3" />
+              </div>
+              <div className="flex items-center gap-3 text-[11px] font-semibold text-text-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: AREA_CHART_COLOR }}></div>
+                  Sender Frequency
                 </div>
-                <div className="flex items-center text-[var(--green)] text-[10px] font-bold">
-                   +{item.diff} <TrendingUp size={10} className="ml-0.5" />
-                </div>
               </div>
-              <div className="text-[13px] font-semibold truncate group-hover:text-[var(--primary)] transition-colors">
-                {item.email.split('@')[0]}
-              </div>
-              <div className="text-[10px] text-[var(--text-3)] truncate mb-3">
-                {item.email}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-1 flex-1 bg-[var(--border)] rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-[var(--primary)] rounded-full" 
-                    style={{ width: `${(item.count / 25) * 100}%` }}
+            </div>
+            
+            <div className="h-[200px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={analyticsData.topSenders} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={AREA_CHART_COLOR} stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor={AREA_CHART_COLOR} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--text-3)', fontSize: 10, fontWeight: 500 }}
+                    dy={10}
                   />
-                </div>
-                <span className="text-[10px] font-medium">{item.count}</span>
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--text-3)', fontSize: 10, fontWeight: 500 }} 
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', background: 'var(--surface)' }}
+                    itemStyle={{ color: AREA_CHART_COLOR, fontWeight: 700 }}
+                    labelStyle={{ color: 'var(--text-2)', fontWeight: 600, marginBottom: 4 }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke={AREA_CHART_COLOR} 
+                    strokeWidth={2.5} 
+                    fillOpacity={1} 
+                    fill="url(#colorValue)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+
+          {/* SIGNALS BREAKDOWN (DONUT) */}
+          <motion.div variants={itemVariants} className="bg-surface border border-border rounded-xl shadow-sm p-4 flex flex-col">
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-sm text-text">Performance by Mix</h3>
+                <Info size={14} className="text-text-3" />
               </div>
             </div>
-          ))}
-          {analyticsData.rising.length === 0 && (
-            <div className="col-span-full py-8 text-center text-[var(--text-3)] text-sm">
-              Insufficient data to identify rising trends.
+            
+            <div className="flex-1 min-h-[160px] flex items-center justify-center relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={analyticsData.classificationMix}
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {analyticsData.classificationMix.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name] || 'var(--text-3)'} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', background: 'var(--surface)' }}
+                    itemStyle={{ fontWeight: 600, color: 'var(--text)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xl font-bold text-text">{analyticsData.total}</span>
+                <span className="text-[9px] font-semibold text-text-3 mt-0.5">Total Signals</span>
+              </div>
             </div>
-          )}
+            
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mt-2">
+               {analyticsData.classificationMix.map(item => (
+                 <div key={item.name} className="flex items-center gap-1.5 text-[10px] font-bold text-text-2">
+                   <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[item.name] || 'var(--text-3)' }}></div>
+                   {item.name.split('_')[0]}
+                 </div>
+               ))}
+            </div>
+          </motion.div>
         </div>
+
+        {/* BOTTOM ROW: RISING RELATIONSHIPS TABLE */}
+        <motion.div variants={itemVariants} className="bg-surface border border-border rounded-xl shadow-sm p-4 mb-2">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-sm text-text">All Email Performance</h3>
+              <Info size={14} className="text-text-3" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Search" 
+                  className="pl-7 pr-3 py-1.5 w-[160px] bg-surface2 border border-border rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-primary transition-shadow text-text" 
+                />
+                <Search size={12} className="absolute left-2.5 top-2 text-text-3" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4 mb-2 border-b border-border">
+            <button className="px-1 py-1.5 text-[11px] font-bold text-text border-b-2 border-text">
+              Sent Emails
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border bg-surface2/50">
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide w-8">
+                     <input type="checkbox" className="rounded border-border bg-surface" />
+                  </th>
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide">Email</th>
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide">Publish Date</th>
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide">Sent</th>
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide">Click Through Rate</th>
+                  <th className="py-2.5 px-3 text-[10px] font-bold text-text-2 tracking-wide">Delivered Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analyticsData.rising.map((item, idx) => (
+                  <tr key={item.email} className={`border-b border-border hover:bg-surface2 transition-colors ${idx === 2 ? 'bg-surface2' : ''}`}>
+                    <td className="py-2.5 px-3">
+                      <input type="checkbox" defaultChecked={idx === 2} className="rounded border-border focus:ring-primary" />
+                    </td>
+                    <td className="py-2.5 px-3">
+                       <div className="font-semibold text-xs text-text">{item.email}</div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                       <div className="text-xs font-semibold text-text-2">17/8/2022</div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                       <div className="text-xs font-bold text-text">{item.count}</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-xs font-bold text-text">
+                       {item.diff}.04%
+                    </td>
+                    <td className="py-2.5 px-3">
+                       <span className="text-[11px] font-bold text-text">100%</span>
+                    </td>
+                  </tr>
+                ))}
+                {analyticsData.rising.length === 0 && (
+                  <tr>
+                    <td colSpan="6" className="py-6 text-center text-xs font-medium text-text-3">
+                      Insufficient data for performance metrics.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+
       </motion.div>
-
-      {/* STATS OVERVIEW */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-        <StatCard icon={ShieldAlert} title="High Urgency" value={analyticsData.classificationMix.find(c => c.name === 'Urgent_Fire')?.value || 0} color="var(--primary)" />
-        <StatCard icon={FileText} title="Information" value={analyticsData.classificationMix.find(c => c.name === 'FYI_Read')?.value || 0} color="var(--green)" />
-        <StatCard icon={Calendar} title="Schedules" value={analyticsData.classificationMix.find(c => c.name === 'Scheduling')?.value || 0} color="var(--blue)" />
-        <StatCard icon={Clock} title="Unique Senders" value={analyticsData.topSenders.length} color="var(--text-2)" />
-      </div>
-    </motion.div>
-  );
-}
-
-function StatCard({ icon: Icon, title, value, color }) {
-  return (
-    <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 flex items-center gap-4">
-      <div className="p-3 rounded-lg" style={{ background: `${color}15`, color: color }}>
-        <Icon size={20} />
-      </div>
-      <div>
-        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-3)]">{title}</div>
-        <div className="text-xl font-bold">{value}</div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
