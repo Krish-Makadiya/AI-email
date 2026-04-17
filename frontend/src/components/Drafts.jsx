@@ -321,7 +321,11 @@ export default function Drafts() {
                   <div className="flex items-center gap-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3.5 py-2.5 rounded-xl mb-5 border border-emerald-100 dark:border-emerald-900/30">
                     <Clock size={14} />
                     {item.scheduled_time 
-                      ? `${new Date(item.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${new Date(item.scheduled_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                      ? (() => {
+                          const normalized = item.scheduled_time.replace(' ', 'T');
+                          const dateObj = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+                          return `${dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} • ${dateObj.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}`;
+                        })()
                       : 'Awaiting sync...'
                     }
                   </div>
