@@ -57,6 +57,7 @@ class EmailInput(BaseModel):
     is_1on1: bool = False
     attachment_analysis: str = ""
     received_at: str | None = None
+    card_id: int | None = None
 
 @app.post("/process-email")
 def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks):
@@ -73,7 +74,8 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         "body": email_dict.get("content"),
         "is_1on1": email_dict.get("is_1on1", False),
         "attachment_analysis": email_dict.get("attachment_analysis", ""),
-        "email_received_at": email_dict.get("received_at")
+        "email_received_at": email_dict.get("received_at"),
+        "card_id": email_dict.get("card_id")
     }
 
     # 0. Fetch user profile for graph context
@@ -112,10 +114,12 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         # Merge email input with the brain's intelligence
         dashboard_data = email.model_dump()
         dashboard_data['classification'] = result.get('category', 'FYI_Read')
-        dashboard_data['urgency_score'] = result.get('urgency_score', 0)
+        # Use the normalized score from command_package if available, otherwise fallback
+        dashboard_data['urgency_score'] = cmd_package.get('payload', {}).get('analysis', {}).get('urgency_score', result.get('urgency_score', 0))
         dashboard_data['short_summary'] = result.get('short_summary', '')
         dashboard_data['suggested_draft'] = cmd_package.get('suggested_draft', '')
         dashboard_data['intelligence_reasoning'] = cmd_package.get('intelligence_reasoning', '')
+        dashboard_data['analysis'] = cmd_package.get('payload', {}).get('analysis', {})
         
         import json
         # If the incoming payload included an email_received_at timestamp, store it in its own column
