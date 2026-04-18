@@ -120,10 +120,34 @@ Structure:
             command_package["action"] = "spam_filter"
             command_package["payload"] = {"summary": "Spam filtered."}
 
+    # Normalize urgency_score to 0-100 (assuming LLM sends 0-10)
+    raw_score = result.get("urgency_score", 1)
+    if raw_score <= 10:
+        normalized_score = raw_score * 10
+    else:
+        normalized_score = raw_score
+
     # Force injection of strictly required n8n fields
     payload = command_package.get("payload", {})
     if "card_id" not in payload: payload["card_id"] = "mock_db_card_123"
     
+    if "analysis" not in payload:
+        payload["analysis"] = {
+            "entities": {
+                "issue_type": category,
+                "affected_system": "General",
+                "routing": "Admin",
+                "error_code": "N/A"
+            },
+            "urgency_score": normalized_score,
+            "summary": short_summary
+        }
+    else:
+        # Ensure normalized score is in the analysis object
+        payload["analysis"]["urgency_score"] = normalized_score
+        if "summary" not in payload["analysis"]:
+            payload["analysis"]["summary"] = short_summary
+
     if "mail" not in payload: payload["mail"] = {}
     payload["mail"]["id"] = "mock_mail_id_123"
     if "body" not in payload["mail"]: payload["mail"]["body"] = email_data.get("body", "No body")

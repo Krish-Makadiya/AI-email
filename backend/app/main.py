@@ -112,10 +112,12 @@ def process_email_endpoint(email: EmailInput, background_tasks: BackgroundTasks)
         # Merge email input with the brain's intelligence
         dashboard_data = email.model_dump()
         dashboard_data['classification'] = result.get('category', 'FYI_Read')
-        dashboard_data['urgency_score'] = result.get('urgency_score', 0)
+        # Use the normalized score from command_package if available, otherwise fallback
+        dashboard_data['urgency_score'] = cmd_package.get('payload', {}).get('analysis', {}).get('urgency_score', result.get('urgency_score', 0))
         dashboard_data['short_summary'] = result.get('short_summary', '')
         dashboard_data['suggested_draft'] = cmd_package.get('suggested_draft', '')
         dashboard_data['intelligence_reasoning'] = cmd_package.get('intelligence_reasoning', '')
+        dashboard_data['analysis'] = cmd_package.get('payload', {}).get('analysis', {})
         
         import json
         # If the incoming payload included an email_received_at timestamp, store it in its own column
@@ -319,7 +321,7 @@ def get_scheduled_emails():
             SELECT id, payload->>'sender_email' as sender, payload->>'subject' as subject, 
             scheduling_status, scheduled_time, google_event_id 
             FROM email_actions 
-            WHERE scheduling_status != 'New'
+            WHERE scheduling_status = 'Confirmed'
             ORDER BY COALESCE(scheduled_time, '2099-01-01'::timestamp) ASC
         """)
         return {"scheduled": cursor.fetchall()}
@@ -360,6 +362,23 @@ class ConfirmUpdate(BaseModel):
     google_event_id: str
     scheduled_time: str | None = None
 
+class TimeUpdate(BaseModel):
+    scheduled_time: str
+
+@app.patch("/email-actions/{id}/set-time")
+def set_email_time(id: int, update: TimeUpdate):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE email_actions SET scheduled_time = %s WHERE id = %s", (update.scheduled_time, id))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Set time error: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if 'conn' in locals(): conn.close()
+
 @app.patch("/email-actions/{id}/confirm")
 def confirm_email_meeting(id: int, update: ConfirmUpdate):
     try:
@@ -369,7 +388,7 @@ def confirm_email_meeting(id: int, update: ConfirmUpdate):
             UPDATE email_actions 
             SET scheduling_status = 'Confirmed', 
                 google_event_id = %s,
-                scheduled_time = %s
+                scheduled_time = COALESCE(%s, scheduled_time)
             WHERE id = %s
         """, (update.google_event_id, update.scheduled_time, id))
         conn.commit()
